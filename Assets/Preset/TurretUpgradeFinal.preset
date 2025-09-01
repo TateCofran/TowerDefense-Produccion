@@ -1,0 +1,280 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!181963792 &2655988077585873504
+Preset:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: TurretUpgradeFinal
+  m_TargetType:
+    m_NativeTypeID: 114
+    m_ManagedTypePPtr: {fileID: 11500000, guid: 0cf0f3c3ac9c37f45a68a56f8cf7cf15, type: 3}
+    m_ManagedTypeFallback: 
+  m_Properties:
+  - target: {fileID: 0}
+    propertyPath: m_Enabled
+    value: 1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: m_EditorHideFlags
+    value: 0
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: m_EditorClassIdentifier
+    value: 
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: maxUpgradeLevel
+    value: 15
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.size
+    value: 15
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[0].level
+    value: 1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[0].damageMultiplier
+    value: 1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[0].rangeMultiplier
+    value: 1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[0].fireRateMultiplier
+    value: 1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[1].level
+    value: 2
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[1].damageMultiplier
+    value: 1.07
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[1].rangeMultiplier
+    value: 1.1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[1].fireRateMultiplier
+    value: 1.15
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[2].level
+    value: 3
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[2].damageMultiplier
+    value: 1.07
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[2].rangeMultiplier
+    value: 1.1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[2].fireRateMultiplier
+    value: 1.15
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[3].level
+    value: 4
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[3].damageMultiplier
+    value: 1.06
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[3].rangeMultiplier
+    value: 1.1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[3].fireRateMultiplier
+    value: 1.15
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[4].level
+    value: 5
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[4].damageMultiplier
+    value: 1.05
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[4].rangeMultiplier
+    value: 1.07
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[4].fireRateMultiplier
+    value: 1.15
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[5].level
+    value: 6
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[5].damageMultiplier
+    value: 1.05
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[5].rangeMultiplier
+    value: 1.07
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[5].fireRateMultiplier
+    value: 1.15
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[6].level
+    value: 7
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[6].damageMultiplier
+    value: 1.04
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[6].rangeMultiplier
+    value: 1.07
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[6].fireRateMultiplier
+    value: 1.1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[7].level
+    value: 8
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[7].damageMultiplier
+    value: 1.04
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[7].rangeMultiplier
+    value: 1.07
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[7].fireRateMultiplier
+    value: 1.1
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[8].level
+    value: 9
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[8].damageMultiplier
+    value: 1.03
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[8].rangeMultiplier
+    value: 1.07
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[8].fireRateMultiplier
+    value: 1.05
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[9].level
+    value: 10
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[9].damageMultiplier
+    value: 1.03
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[9].rangeMultiplier
+    value: 1.05
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[9].fireRateMultiplier
+    value: 1.05
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[10].level
+    value: 11
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[10].damageMultiplier
+    value: 1.02
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[10].rangeMultiplier
+    value: 1.05
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[10].fireRateMultiplier
+    value: 1.05
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[11].level
+    value: 12
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[11].damageMultiplier
+    value: 1.02
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[11].rangeMultiplier
+    value: 1.05
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[11].fireRateMultiplier
+    value: 1.05
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[12].level
+    value: 13
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[12].damageMultiplier
+    value: 1.02
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[12].rangeMultiplier
+    value: 1.05
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[12].fireRateMultiplier
+    value: 1.05
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[13].level
+    value: 14
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[13].damageMultiplier
+    value: 1.01
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[13].rangeMultiplier
+    value: 1.05
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[13].fireRateMultiplier
+    value: 1.05
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[14].level
+    value: 15
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[14].damageMultiplier
+    value: 1.02
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[14].rangeMultiplier
+    value: 1.07
+    objectReference: {fileID: 0}
+  - target: {fileID: 0}
+    propertyPath: upgradeSteps.Array.data[14].fireRateMultiplier
+    value: 1.07
+    objectReference: {fileID: 0}
+  m_ExcludedProperties: []
+  m_CoupledType:
+    m_NativeTypeID: 0
+    m_ManagedTypePPtr: {fileID: 0}
+    m_ManagedTypeFallback: 
+  m_CoupledProperties: []
