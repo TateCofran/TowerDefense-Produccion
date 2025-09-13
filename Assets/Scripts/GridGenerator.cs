@@ -595,6 +595,7 @@ public class GridGenerator : MonoBehaviour
 
                 GameObject prefab = (type == TileLayout.TileType.Path) ? pathPrefab : grassPrefab;
                 if (!prefab) continue;
+                
 
                 Vector3 basePos = worldOrigin + CellToWorldLocal(cell, layout, rotSteps, flip);
                 Vector3 offset = (type == TileLayout.TileType.Path) ? pathCellOffset : grassCellOffset;
@@ -602,6 +603,19 @@ public class GridGenerator : MonoBehaviour
                 var go = Instantiate(prefab, basePos + offset, Quaternion.Euler(0f, rotSteps * 90f, 0f), parent);
                 go.name = $"{prefab.name}_({x},{y})";
                 count++;
+
+                //si es pasto asignar tag Grass
+                if (type == TileLayout.TileType.Grass)
+                {
+                    go.tag = "Grass";
+                    if (go.GetComponent<Collider>() == null)
+                    {
+                        var col = go.AddComponent<BoxCollider>();
+                        
+                        col.size = new Vector3(layout.cellSize, 0.9f, layout.cellSize);
+                        col.center = new Vector3(0f, 0.05f, 0f); 
+                    }
+                }
             }
         }
         return count;
