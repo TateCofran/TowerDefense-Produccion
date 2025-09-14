@@ -7,11 +7,6 @@ public class TurretController : MonoBehaviour
     [SerializeField] private GameObject[] turretPrefabs;
     private GameObject selectedTurretPrefab;
 
-    [Header("Turret Stats")]
-    [SerializeField] private float attackSpeed = 10;
-    [SerializeField] private float damage = 20;
-    [SerializeField] private float range = 5;
-
     [Header("Other configurations")]
     [SerializeField] private InputActionReference clickAction;
     [SerializeField] private Camera mainCamera;
@@ -54,31 +49,21 @@ public class TurretController : MonoBehaviour
         Ray ray = mainCamera.ScreenPointToRay(mousePos);
         RaycastHit hit;
 
-
         if (Physics.Raycast(ray, out hit))
         {
             Collider clickedCollider = hit.collider;
 
             if (clickedCollider.CompareTag("Grass"))
             {
-                Debug.Log("Hiciste click en un tile de pasto: " + clickedCollider.name); //aca deberia instanciar a una torreta VER
-                //instanciar torreta justo arriba de la posicion del tile de pasto traerme posicion de donde clickee
+                Debug.Log("Hiciste click en un tile de pasto: " + clickedCollider.name);
 
-                Vector3 spawnPos = hit.point;
-                float turretHeight = selectedTurretPrefab.transform.localScale.y;
-                spawnPos.y = clickedCollider.bounds.max.y + turretHeight/2;
+                BoxCollider turretCollider = selectedTurretPrefab.GetComponent<BoxCollider>();
 
-                //limito x y z para q no se salga del tile
-                Vector3 halfSize = selectedTurretPrefab.transform.localScale/2f;
+                //posición centrada sobre el tile
+                Vector3 spawnPos = clickedCollider.bounds.center;
+                spawnPos.y = clickedCollider.bounds.max.y + turretCollider.bounds.extents.y;
 
-                spawnPos.x = Mathf.Clamp(spawnPos.x,
-                                         clickedCollider.bounds.min.x + halfSize.x,
-                                         clickedCollider.bounds.max.x - halfSize.x);
-
-                spawnPos.z = Mathf.Clamp(spawnPos.z,
-                                         clickedCollider.bounds.min.z + halfSize.z,
-                                         clickedCollider.bounds.max.z - halfSize.z);
-
+                //instanciar torreta solo si no hay otra
                 if (clickedCollider.transform.childCount == 0)
                 {
                     GameObject turret = Instantiate(selectedTurretPrefab, spawnPos, Quaternion.identity);

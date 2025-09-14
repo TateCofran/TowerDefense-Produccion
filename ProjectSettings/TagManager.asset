@@ -5,6 +5,9 @@ TagManager:
   serializedVersion: 3
   tags:
   - Grass
+  - Turret
+  - Enemy
+  - AttackModeDropdown
   layers:
   - Default
   - TransparentFX
