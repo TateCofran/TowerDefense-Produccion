@@ -6,7 +6,7 @@ public class ShiftingWorldMechanic : MonoBehaviour
 
     [Header("Refs")]
     [SerializeField] private GridGenerator grid;
-    [SerializeField] private ShiftingWorldUI ui;   // <-- referencia a tu UI
+    [SerializeField] private ShiftingWorldUI ui;   // referencia a la UI
 
     [Header("Estado")]
     [SerializeField] private World currentWorld = World.Normal;
@@ -19,10 +19,14 @@ public class ShiftingWorldMechanic : MonoBehaviour
     [SerializeField] private float speedPerSecond = 20f;
     [SerializeField] private KeyCode toggleKey = KeyCode.J;
 
-    // Latches
-    private bool fireGuard = false;        // evita doble disparo en el frame (generación/acciones)
-    private bool normalPanelOpen = false;  // evita reabrir mientras ya está abierto
+    // Latches / flags
+    private bool fireGuard = false;
+    private bool normalPanelOpen = false;
     private bool otherPanelOpen = false;
+
+    // NUEVO: pausas hasta que elijas
+    private bool normalWaitingChoice = false;
+    private bool otherWaitingChoice = false;
 
     void Update()
     {
@@ -32,81 +36,89 @@ public class ShiftingWorldMechanic : MonoBehaviour
             currentWorld = (currentWorld == World.Normal) ? World.Otro : World.Normal;
             Debug.Log($"[ShiftingWorldMechanic] Cambié de mundo → {currentWorld}");
 
-            // Reseteo del contador del mundo al que entro (según tu regla previa)
-            if (currentWorld == World.Normal) normalProgress = 0f;
-            else otherProgress = 0f;
-        }
-
-        // Avance del mundo activo
-        if (currentWorld == World.Normal)
-        {
-            if (normalProgress < 100f)
-                normalProgress = Mathf.Min(100f, normalProgress + speedPerSecond * Time.deltaTime);
-
-            if (!fireGuard && Mathf.FloorToInt(normalProgress) >= 100)
+            // Regla original: reset al entrar a un mundo,
+            // pero si ese mundo está esperando elección, NO reseteamos.
+            if (currentWorld == World.Normal)
             {
-                fireGuard = true;
-
-                // 1) UI: abrir panel del mundo normal
-                if (ui != null && !normalPanelOpen)
-                {
-                    normalPanelOpen = true;
-                    ui.ShowNormalReached(() =>
-                    {
-                        // Callback opcional cuando se cierra el panel
-                        normalPanelOpen = false;
-                    });
-                }
-
-                // 2) Generar tile (tu comportamiento previo)
-                TryAppendTileFromNormal();
-
-                // 3) Reset contador (regla: al instanciar, se reinicia)
-                normalProgress = 0f;
+                if (!normalWaitingChoice) normalProgress = 0f;
+            }
+            else // Otro
+            {
+                if (!otherWaitingChoice) otherProgress = 0f;
             }
         }
-        else // Mundo "Otro"
+
+        // ----- Mundo Normal -----
+        if (currentWorld == World.Normal)
         {
-            if (otherProgress < 100f)
-                otherProgress = Mathf.Min(100f, otherProgress + speedPerSecond * Time.deltaTime);
-
-            if (!fireGuard && Mathf.FloorToInt(otherProgress) >= 100)
+            // Si está esperando elección, no sumar ni tocar el progreso
+            if (!normalWaitingChoice)
             {
-                fireGuard = true;
+                if (normalProgress < 100f)
+                    normalProgress = Mathf.Min(100f, normalProgress + speedPerSecond * Time.deltaTime);
 
-                // UI: abrir panel del "Otro mundo"
-                if (ui != null && !otherPanelOpen)
+                if (!fireGuard && Mathf.FloorToInt(normalProgress) >= 100)
                 {
-                    otherPanelOpen = true;
-                    ui.ShowOtherReached(() =>
+                    fireGuard = true;
+                    normalWaitingChoice = true; // PAUSA el contador
+
+                    if (ui != null && !normalPanelOpen)
                     {
-                        // Callback opcional cuando se cierra el panel
-                        otherPanelOpen = false;
-                    });
+                        normalPanelOpen = true;
+                        Debug.Log("[ShiftingWorldMechanic] Normal llegó a 100 → abrir panel (pausado hasta elegir).");
+                        ui.ShowNormalReached(() =>
+                        {
+                            // La UI cierra porque ELEGISTE una opción → liberar pausa
+                            normalPanelOpen = false;
+                            normalWaitingChoice = false;
+                            normalProgress = 0f; // recién ahora reseteamos
+                            Debug.Log("[ShiftingWorldMechanic] Panel Normal cerrado → reanudar progreso (reseteado a 0).");
+                        });
+                    }
+                    else if (ui == null)
+                    {
+                        Debug.LogWarning("[ShiftingWorldMechanic] Falta referencia a ShiftingWorldUI.");
+                    }
                 }
+            }
+        }
+        // ----- Otro Mundo -----
+        else
+        {
+            if (!otherWaitingChoice)
+            {
+                if (otherProgress < 100f)
+                    otherProgress = Mathf.Min(100f, otherProgress + speedPerSecond * Time.deltaTime);
 
-                // Si querés que el otro mundo también dispare algo (p.ej. generar tile),
-                // podés agregarlo acá.
+                if (!fireGuard && Mathf.FloorToInt(otherProgress) >= 100)
+                {
+                    fireGuard = true;
+                    otherWaitingChoice = true; // PAUSA el contador
 
-                // Reset del contador del "Otro mundo"
-                otherProgress = 0f;
+                    if (ui != null && !otherPanelOpen)
+                    {
+                        otherPanelOpen = true;
+                        Debug.Log("[ShiftingWorldMechanic] Otro llegó a 100 → abrir panel (pausado hasta elegir).");
+                        ui.ShowOtherReached(() =>
+                        {
+                            otherPanelOpen = false;
+                            otherWaitingChoice = false;
+                            otherProgress = 0f; // reset tras elegir
+                            Debug.Log("[ShiftingWorldMechanic] Panel Otro cerrado → reanudar progreso (reseteado a 0).");
+                        });
+                    }
+                    else if (ui == null)
+                    {
+                        Debug.LogWarning("[ShiftingWorldMechanic] Falta referencia a ShiftingWorldUI.");
+                    }
+                }
             }
         }
 
         if (fireGuard) fireGuard = false;
     }
 
-    private void TryAppendTileFromNormal()
-    {
-        if (grid == null)
-        {
-            Debug.LogWarning("[ShiftingWorldMechanic] GridGenerator no asignado.");
-            return;
-        }
-        grid.UI_AppendNext();
-    }
-
-    // Helpers para UI/depurar
+    // Helpers (si los usás en UI/debug)
     public void SetSpeed(float v) => speedPerSecond = Mathf.Max(0f, v);
     public string GetWorldName() => currentWorld == World.Normal ? "Normal" : "OtroMundo";
     public int GetNormalInt() => Mathf.Min(100, Mathf.FloorToInt(normalProgress));

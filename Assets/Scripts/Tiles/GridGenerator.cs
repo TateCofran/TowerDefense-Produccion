@@ -727,6 +727,116 @@ public class GridGenerator : MonoBehaviour
         }
         return false;
     }
+    // === Agregar dentro de GridGenerator ===
+    public List<TileLayout> GetRandomCandidateSet(int count)
+    {
+        var pool = new List<TileLayout>();
+        foreach (var c in candidateLayouts)
+            if (c != null) pool.Add(c);
+
+        // Fisher–Yates
+        for (int i = 0; i < pool.Count; i++)
+        {
+            int j = _rng.Next(i, pool.Count);
+            (pool[i], pool[j]) = (pool[j], pool[i]);
+        }
+
+        if (pool.Count > count) pool.RemoveRange(count, pool.Count - count);
+        return pool;
+    }
+    // === Agregar dentro de GridGenerator ===
+    public bool AppendNextUsingSelectedExitWithLayout(TileLayout forced)
+    {
+        if (forced == null) return false;
+
+        int globalIdx = GetGlobalExitIndexFromAvailable(selectedExitIndex);
+        if (globalIdx < 0 || _exits.Count == 0) return false;
+
+        var chosen = _exits[globalIdx];
+        if (chosen.used || chosen.closed) return false;
+
+        int tileIdx = chosen.tileIndex;
+        var tile = _chain[tileIdx];
+        var layoutPrev = tile.layout;
+        var exitCell = chosen.cell;
+
+        if (!layoutPrev.IsInside(exitCell) || !layoutPrev.IsPath(exitCell)) return false;
+
+        var nb = FindSinglePathNeighbor(layoutPrev, exitCell);
+        if (!nb.HasValue) return false;
+
+        Vector2Int dirOut = (exitCell - nb.Value);
+        dirOut = ApplyInverseOrientationToDir(dirOut, tile.rotSteps, tile.flipped);
+        dirOut = ClampToOrtho(dirOut);
+
+        Vector3 prevMin = tile.aabbMin;
+        Vector3 prevMax = tile.aabbMax;
+        Vector3 prevExitWorld = tile.worldOrigin + CellToWorldLocal(exitCell, layoutPrev, tile.rotSteps, tile.flipped);
+
+        int rotMax = allowRotations ? 4 : 1;
+        for (int rot = 0; rot < rotMax; rot++)
+        {
+            int flipCount = allowFlip ? 2 : 1;
+            for (int f = 0; f < flipCount; f++)
+            {
+                bool flip = allowFlip && (f == 1);
+
+                var entry = forced.entry;
+                if (!forced.IsInside(entry) || !forced.IsPath(entry)) continue;
+
+                OrientedSize(forced, rot, out int w, out int h);
+                float width = w * forced.cellSize;
+                float height = h * forced.cellSize;
+
+                Vector2Int entryOriented = ApplyOrientationToCell(entry, forced, rot, flip);
+
+                bool okBorde = false;
+                if (dirOut == Vector2Int.right) okBorde = (entryOriented.x == 0);
+                if (dirOut == Vector2Int.left) okBorde = (entryOriented.x == w - 1);
+                if (dirOut == Vector2Int.up) okBorde = (entryOriented.y == 0);
+                if (dirOut == Vector2Int.down) okBorde = (entryOriented.y == h - 1);
+                if (!okBorde) continue;
+
+                Vector3 newOrigin = ComputeNewOrigin(forced, rot, entryOriented, dirOut, prevMin, prevMax, prevExitWorld);
+                Vector3 nMin = newOrigin;
+                Vector3 nMax = newOrigin + new Vector3(width, 0f, height);
+
+                if (OverlapsAny(nMin, nMax)) continue;
+
+                var parent = CreateTileParent(tilesRoot, tileGroupBaseName + _chain.Count);
+                int count = InstantiateLayout(forced, newOrigin, rot, flip, parent);
+
+                var placed = new PlacedTile
+                {
+                    layout = forced,
+                    worldOrigin = newOrigin,
+                    rotSteps = rot,
+                    flipped = flip,
+                    parent = parent,
+                    aabbMin = nMin,
+                    aabbMax = nMax
+                };
+                _chain.Add(placed);
+
+                chosen.used = true;
+                RelabelAvailableExits();
+                AddTileExitsToPool(_chain.Count - 1, excludeAssetCell: forced.entry);
+
+                Debug.Log($"[GridGenerator] Conectado con layout forzado {forced.name} (rot={rot * 90}°, flip={flip}). Instancias: {count}");
+                return true;
+            }
+        }
+
+        // Si el EXIT no tiene ninguna colocación posible con ningún giro/flip de ese layout, y en general no hay ninguna válida, se cierra.
+        if (!HasAnyValidPlacementForExit(chosen))
+        {
+            chosen.closed = true;
+            chosen.label = "EXIT CERRADO";
+            RelabelAvailableExits();
+            selectedExitIndex = 0;
+        }
+        return false;
+    }
 
 }
 
