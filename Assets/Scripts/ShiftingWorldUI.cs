@@ -15,6 +15,7 @@ public class ShiftingWorldUI : MonoBehaviour
     [SerializeField] private GameObject tilePanelRoot;
     [SerializeField] private Button[] tileButtons;
     [SerializeField] private TMP_Text[] tileLabels;
+    private bool tileChoiceLocked = false;
 
     [Header("Turret Selection")]
     [SerializeField] private GameObject turretPanelRoot;
@@ -110,13 +111,14 @@ public class ShiftingWorldUI : MonoBehaviour
     // -------- API que llama el Mechanic --------
     public void ShowNormalReached(Action closedCb = null)
     {
+        tileChoiceLocked = false; // <-- important
         currentMode = PanelMode.Normal;
         onClosed = closedCb;
-
         BuildNormalOptions();
         tilePanelRoot?.SetActive(true);
         turretPanelRoot?.SetActive(false);
     }
+
 
     public void ShowOtherReached(Action closedCb = null)
     {
@@ -181,10 +183,11 @@ public class ShiftingWorldUI : MonoBehaviour
             BindButton(turretButtons, turretLabels, i, label, () => OnChooseTurret(idx));
         }
     }
-
-    // -------- Callbacks de elección --------
     private void OnChooseTile(int index)
     {
+        if (tileChoiceLocked) return;          // <-- evita doble ejecución
+        tileChoiceLocked = true;
+
         var chosen = (index >= 0 && index < currentTileOptions.Count) ? currentTileOptions[index] : null;
         if (chosen == null)
         {
@@ -195,6 +198,11 @@ public class ShiftingWorldUI : MonoBehaviour
 
         bool ok = grid.AppendNextUsingSelectedExitWithLayout(chosen);
         if (!ok) Debug.LogWarning($"[ShiftingWorldUI] No se pudo colocar el layout: {chosen.name}");
+
+        // Deshabilitá los botones inmediatamente para que no puedan re-clickear
+        if (tileButtons != null)
+            foreach (var b in tileButtons) if (b) b.interactable = false;
+
         Close();
     }
 

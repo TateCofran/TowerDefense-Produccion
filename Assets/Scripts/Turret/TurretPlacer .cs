@@ -18,6 +18,9 @@ public class TurretPlacer : MonoBehaviour
     private GameObject _ghost;
     private bool _placing;
 
+    [SerializeField] private bool removeWithMiddleClick = true;
+
+    private bool _removing;
     private void Awake()
     {
         if (ui != null) ui.OnTurretChosen += HandleTurretChosen;
@@ -52,6 +55,32 @@ public class TurretPlacer : MonoBehaviour
 
     private void Update()
     {
+        if (removeWithMiddleClick && Input.GetMouseButtonDown(2)   // clic medio
+            || (Input.GetKey(KeyCode.LeftShift) && Input.GetMouseButtonDown(0))) // Shift+Click
+        {
+            var camRemove = cam ? cam : Camera.main;
+            if (!camRemove) return;
+
+            // Evitá borrar si el puntero está sobre la UI
+            if (UnityEngine.EventSystems.EventSystem.current &&
+                UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+                return;
+
+            Ray rayRemove = camRemove.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(rayRemove, out var hitRemove, 500f, cellLayers))
+            {
+                var slot = hitRemove.collider.GetComponentInParent<CellSlot>();
+                if (slot != null && slot.IsOccupied)
+                {
+                    if (slot.TryRemove())
+                        Debug.Log("[TurretPlacer] Torreta eliminada.");
+                }
+            }
+
+            // Si estabas viendo el ghost de colocar, ocultalo
+            if (_ghost) _ghost.SetActive(false);
+            return; // importante: no sigas con la lógica de colocar este frame
+        }
         if (!_placing) return;
 
         var cameraToUse = cam ? cam : Camera.main;
@@ -118,6 +147,17 @@ public class TurretPlacer : MonoBehaviour
             // Nada bajo el mouse: ocultar ghost
             if (_ghost) _ghost.SetActive(false);
         }
+    }
+    public void EnterRemoveMode()
+    {
+        _placing = false; // por si acaso
+        _removing = true;
+        if (_ghost) _ghost.SetActive(false);
+    }
+
+    public void ExitRemoveMode()
+    {
+        _removing = false;
     }
 
 }

@@ -36,17 +36,9 @@ public class ShiftingWorldMechanic : MonoBehaviour
             currentWorld = (currentWorld == World.Normal) ? World.Otro : World.Normal;
             Debug.Log($"[ShiftingWorldMechanic] Cambié de mundo → {currentWorld}");
 
-            // Regla original: reset al entrar a un mundo,
-            // pero si ese mundo está esperando elección, NO reseteamos.
-            if (currentWorld == World.Normal)
-            {
-                if (!normalWaitingChoice) normalProgress = 0f;
-            }
-            else // Otro
-            {
-                if (!otherWaitingChoice) otherProgress = 0f;
-            }
+            ResetAllProgressAndPanels(); // <-- SIEMPRE reinicia todo al cambiar
         }
+
 
         // ----- Mundo Normal -----
         if (currentWorld == World.Normal)
@@ -136,6 +128,22 @@ public class ShiftingWorldMechanic : MonoBehaviour
     {
         Debug.Log($"[ShiftingWorldMechanic] Torreta elegida: {(string.IsNullOrEmpty(so.displayName) ? so.name : so.displayName)}");
         // TODO: acá tu lógica (spawn de torreta, abrir tienda, etc.)
+    }
+    private void ResetAllProgressAndPanels()
+    {
+        // cerrar cualquier panel abierto
+        if (ui != null) ui.Close();
+
+        // limpiar flags de espera y de panel abierto
+        normalWaitingChoice = false;
+        otherWaitingChoice = false;
+        normalPanelOpen = false;
+        otherPanelOpen = false;
+        fireGuard = false;
+
+        // reiniciar porcentajes
+        normalProgress = 0f;
+        otherProgress = 0f;
     }
 
     // Helpers (si los usás en UI/debug)
