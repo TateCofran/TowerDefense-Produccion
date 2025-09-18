@@ -7,12 +7,14 @@ TagManager:
   - Grass
   - Turret
   - Enemy
-  - AttackModeDropdown
+  - Path
+  - Cell
+  - Core
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Cell
   - Water
   - UI
   - 

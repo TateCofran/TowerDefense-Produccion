@@ -18,4 +18,7 @@ public class TurretDataSO : ScriptableObject
     public float range;
     public float fireRate;
     public float projectileSpeed;
+
+    [Header("Prefab")]
+    public GameObject prefab;
 }

@@ -117,6 +117,26 @@ public class ShiftingWorldMechanic : MonoBehaviour
 
         if (fireGuard) fireGuard = false;
     }
+    // En ShiftingWorldMechanic.cs
+    private void Awake()
+    {
+        // Si querés hacer algo cuando el jugador elige una torreta:
+        if (ui != null)
+            ui.OnTurretChosen += HandleTurretChosen;
+    }
+
+    private void OnDestroy()
+    {
+        if (ui != null)
+            ui.OnTurretChosen -= HandleTurretChosen;
+    }
+
+    // Recibe la torreta elegida desde la UI
+    private void HandleTurretChosen(TurretDataSO so)
+    {
+        Debug.Log($"[ShiftingWorldMechanic] Torreta elegida: {(string.IsNullOrEmpty(so.displayName) ? so.name : so.displayName)}");
+        // TODO: acá tu lógica (spawn de torreta, abrir tienda, etc.)
+    }
 
     // Helpers (si los usás en UI/debug)
     public void SetSpeed(float v) => speedPerSecond = Mathf.Max(0f, v);

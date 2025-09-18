@@ -8,40 +8,133 @@ public class ShiftingWorldUI : MonoBehaviour
 {
     public enum PanelMode { Normal, Otro }
 
-    [Header("Refs")]
-    [SerializeField] private GridGenerator grid;      // para pedir candidatos y forzar el layout
-    [SerializeField] private GameObject panelRoot;    // panel contenedor (activar/desactivar)
-    [SerializeField] private Button[] optionButtons;  // tamaño 3
-    [SerializeField] private TMP_Text[] optionLabels; // opcional si usás TMP (mismo tamaño que botones)
+    [Header("Grid (para tiles)")]
+    [SerializeField] private GridGenerator grid;
+
+    [Header("Tile Selection")]
+    [SerializeField] private GameObject tilePanelRoot;
+    [SerializeField] private Button[] tileButtons;
+    [SerializeField] private TMP_Text[] tileLabels;
+
+    [Header("Turret Selection")]
+    [SerializeField] private GameObject turretPanelRoot;
+    [SerializeField] private Button[] turretButtons;
+    [SerializeField] private TMP_Text[] turretLabels;
+
+    [Header("Torretas (fuente)")]
+    [SerializeField] private TurretDatabaseSO turretDatabase;
+    [SerializeField] private List<TurretDataSO> turretPool = new();
+
+    // === NUEVO: parámetros de colocación ===
+    [Header("Placement")]
+    [SerializeField] private Camera cam;               // si está vacío usa Camera.main
+    [SerializeField] private LayerMask cellLayers = ~0; // filtros de raycast
+    [SerializeField] private float turretYOffset = 0.5f;
+
+    // === NUEVO: estado de colocación ===
+    private TurretDataSO selectedTurret;  // torreta elegida
+    private bool placingMode = false;     // estoy en modo colocación
+
+    public event Action<TurretDataSO> OnTurretChosen;
 
     private Action onClosed;
     private PanelMode currentMode;
 
-    // Cache de opciones actuales
-    private List<TileLayout> currentTileOptions = new();  // para modo Normal
-    private List<string> currentTurretOptions = new(); // para modo Otro (placeholder)
+    private readonly List<TileLayout> currentTileOptions = new();
+    private readonly List<TurretDataSO> currentTurretOptions = new();
 
-    void Awake()
+    void Awake() => HideAll();
+
+    void Update()
     {
-        Hide();
+        // --- Modo colocación activo: clic en Cell para instanciar ---
+        if (!placingMode || selectedTurret == null) return;
+
+        var cameraToUse = cam != null ? cam : Camera.main;
+        if (cameraToUse == null) return;
+
+        // Cancelar
+        if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
+        {
+            CancelPlacement();
+            return;
+        }
+        // Click izquierdo para colocar
+        if (Input.GetMouseButtonDown(0))
+        {
+            Camera c = cam ?? Camera.main;
+            if (c == null) return;
+
+            Ray ray = c.ScreenPointToRay(Input.mousePosition);
+            if (Physics.Raycast(ray, out var hit, 500f, cellLayers))
+            {
+                // Buscar el slot en el collider o en sus padres
+                var slot = hit.collider.GetComponentInParent<CellSlot>();
+                if (slot == null)
+                {
+                    Debug.Log("[ShiftingWorldUI] No hay CellSlot en el objeto cliqueado.");
+                    return;
+                }
+
+                // (Opcional) Si querés seguir exigiendo el tag:
+                // if (!slot.CompareTag("Cell")) return;  // solo si el slot está en el GO con tag
+
+                if (selectedTurret == null || selectedTurret.prefab == null)
+                {
+                    Debug.LogWarning("[ShiftingWorldUI] La torreta seleccionada no tiene prefab.");
+                    CancelPlacement();
+                    return;
+                }
+
+                // Intentar colocar con offset Y
+                if (slot.TryPlace(selectedTurret.prefab))
+                {
+                    Debug.Log("[ShiftingWorldUI] Torreta colocada.");
+                    EndPlacement();
+                }
+                else
+                {
+                    Debug.Log("[ShiftingWorldUI] La celda figura ocupada.");
+                }
+            }
+        }
+
     }
 
+    private void EndPlacement()
+    {
+        placingMode = false;
+        selectedTurret = null;
+    }
+
+    private void CancelPlacement()
+    {
+        Debug.Log("[ShiftingWorldUI] Colocación cancelada.");
+        EndPlacement();
+    }
+
+    // -------- API que llama el Mechanic --------
     public void ShowNormalReached(Action closedCb = null)
     {
         currentMode = PanelMode.Normal;
         onClosed = closedCb;
+
         BuildNormalOptions();
-        Show();
+        tilePanelRoot?.SetActive(true);
+        turretPanelRoot?.SetActive(false);
     }
 
     public void ShowOtherReached(Action closedCb = null)
     {
         currentMode = PanelMode.Otro;
         onClosed = closedCb;
+
         BuildOtherOptions();
-        Show();
+        tilePanelRoot?.SetActive(false);
+        turretPanelRoot?.SetActive(true);
     }
 
+    // -------- Construcción de opciones --------
     private void BuildNormalOptions()
     {
         currentTileOptions.Clear();
@@ -49,19 +142,20 @@ public class ShiftingWorldUI : MonoBehaviour
         if (grid == null)
         {
             Debug.LogWarning("[ShiftingWorldUI] Grid no asignado.");
-            SetButtonsDisabled("Grid no asignado");
+            SetButtonsDisabled(tileButtons, tileLabels, "Grid no asignado");
             return;
         }
 
         var candidates = grid.GetRandomCandidateSet(3);
-        // Asegurar exactamente 3 slots (si faltan, repetimos/llenamos con null)
+
         for (int i = 0; i < 3; i++)
         {
             var layout = (i < candidates.Count) ? candidates[i] : null;
             currentTileOptions.Add(layout);
 
             string label = layout != null ? layout.name : "N/D";
-            BindButton(i, label, () => OnChooseTile(i));
+            int idx = i; // evitar captura de i
+            BindButton(tileButtons, tileLabels, i, label, () => OnChooseTile(idx));
         }
     }
 
@@ -69,99 +163,133 @@ public class ShiftingWorldUI : MonoBehaviour
     {
         currentTurretOptions.Clear();
 
-        // Placeholder: tres torretas inventadas por ahora
-        currentTurretOptions.Add("Torreta A");
-        currentTurretOptions.Add("Torreta B");
-        currentTurretOptions.Add("Torreta C");
+        var pool = new List<TurretDataSO>();
+        if (turretDatabase != null && turretDatabase.allTurrets != null)
+            foreach (var t in turretDatabase.allTurrets) if (t) pool.Add(t);
+        if (turretPool != null)
+            foreach (var t in turretPool) if (t) pool.Add(t);
 
+        if (pool.Count == 0)
+        {
+            Debug.LogWarning("[ShiftingWorldUI] No hay torretas en la DB o turretPool.");
+            SetButtonsDisabled(turretButtons, turretLabels, "Sin torretas");
+            return;
+        }
+
+        Shuffle(pool);
         for (int i = 0; i < 3; i++)
         {
-            string label = currentTurretOptions[i];
-            BindButton(i, label, () => OnChooseTurret(i));
+            var so = pool[i % pool.Count];
+            currentTurretOptions.Add(so);
+
+            string label = !string.IsNullOrEmpty(so.displayName) ? so.displayName : so.name;
+            int idx = i; // evitar captura de i
+            BindButton(turretButtons, turretLabels, i, label, () => OnChooseTurret(idx));
         }
     }
 
-    private void BindButton(int index, string label, Action onClick)
-    {
-        if (index < 0 || index >= optionButtons.Length) return;
-
-        var btn = optionButtons[index];
-        if (btn == null) return;
-
-        btn.onClick.RemoveAllListeners();
-        btn.onClick.AddListener(() => onClick());
-
-        if (optionLabels != null && index < optionLabels.Length && optionLabels[index] != null)
-            optionLabels[index].text = label;
-        else
-        {
-            // Si no usás TMP_Text, probá a buscar Text (UGUI) en el hijo
-            var legacyText = btn.GetComponentInChildren<Text>();
-            if (legacyText != null) legacyText.text = label;
-        }
-
-        btn.interactable = true;
-        btn.gameObject.SetActive(true);
-    }
-
-    private void SetButtonsDisabled(string label)
-    {
-        for (int i = 0; i < optionButtons.Length; i++)
-        {
-            var btn = optionButtons[i];
-            if (btn == null) continue;
-
-            btn.onClick.RemoveAllListeners();
-            btn.interactable = false;
-
-            if (optionLabels != null && i < optionLabels.Length && optionLabels[i] != null)
-                optionLabels[i].text = label;
-
-            btn.gameObject.SetActive(true);
-        }
-    }
-
+    // -------- Callbacks de elección --------
     private void OnChooseTile(int index)
     {
         var chosen = (index >= 0 && index < currentTileOptions.Count) ? currentTileOptions[index] : null;
         if (chosen == null)
         {
-            Debug.LogWarning("[ShiftingWorldUI] opción de tile inválida.");
+            Debug.LogWarning("[ShiftingWorldUI] Opción de tile inválida.");
             Close();
             return;
         }
 
         bool ok = grid.AppendNextUsingSelectedExitWithLayout(chosen);
-        if (!ok)
-            Debug.LogWarning($"[ShiftingWorldUI] No se pudo colocar el layout elegido: {chosen.name}");
-
+        if (!ok) Debug.LogWarning($"[ShiftingWorldUI] No se pudo colocar el layout: {chosen.name}");
         Close();
     }
 
     private void OnChooseTurret(int index)
     {
-        string label = (index >= 0 && index < currentTurretOptions.Count) ? currentTurretOptions[index] : "N/D";
-        Debug.Log($"[ShiftingWorldUI] (Otro Mundo) Elegiste torreta: {label} (pendiente implementación)");
-        // TODO: aquí enganchar con tu flujo de construcción/compra de torretas.
-        Close();
+        var so = (index >= 0 && index < currentTurretOptions.Count) ? currentTurretOptions[index] : null;
+        if (so == null || so.prefab == null)
+        {
+            Debug.LogWarning("[ShiftingWorldUI] Opción de torreta inválida.");
+        }
+        else
+        {
+            // Guardamos y entramos en modo colocación (el panel se cierra)
+            selectedTurret = so;
+            placingMode = true;
+            OnTurretChosen?.Invoke(so);
+            Debug.Log($"[ShiftingWorldUI] Elegiste torreta: {(string.IsNullOrEmpty(so.displayName) ? so.name : so.displayName)} → Modo colocación activo.");
+        }
+
+        Close(); // cerramos panel pero seguimos en colocación
     }
 
-    public void Show()
+    // -------- Utilidades de UI --------
+    private void BindButton(Button[] buttons, TMP_Text[] labels, int index, string label, Action onClick)
     {
-        if (panelRoot != null) panelRoot.SetActive(true);
+        if (buttons == null || index < 0 || index >= buttons.Length) return;
+        var btn = buttons[index];
+        if (!btn) return;
+
+        btn.onClick.RemoveAllListeners();
+        btn.onClick.AddListener(() => onClick());
+        btn.interactable = true;
+        btn.gameObject.SetActive(true);
+
+        TMP_Text tmp = (labels != null && index < labels.Length) ? labels[index] : null;
+        if (tmp == null) tmp = btn.GetComponentInChildren<TMP_Text>(true);
+        if (tmp != null) tmp.text = label;
+        else
+        {
+            var legacy = btn.GetComponentInChildren<Text>(true);
+            if (legacy) legacy.text = label;
+        }
     }
 
-    public void Hide()
+    private void SetButtonsDisabled(Button[] buttons, TMP_Text[] labels, string text)
     {
-        if (panelRoot != null) panelRoot.SetActive(false);
+        if (buttons == null) return;
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            var btn = buttons[i];
+            if (!btn) continue;
+
+            btn.onClick.RemoveAllListeners();
+            btn.interactable = false;
+            btn.gameObject.SetActive(true);
+
+            TMP_Text tmp = (labels != null && i < labels.Length) ? labels[i] : null;
+            if (tmp == null) tmp = btn.GetComponentInChildren<TMP_Text>(true);
+            if (tmp) tmp.text = text;
+            else
+            {
+                var legacy = btn.GetComponentInChildren<Text>(true);
+                if (legacy) legacy.text = text;
+            }
+        }
     }
 
     public void Close()
     {
-        Hide();
+        HideAll();
         onClosed?.Invoke();
         onClosed = null;
         currentTileOptions.Clear();
         currentTurretOptions.Clear();
+    }
+
+    private void HideAll()
+    {
+        if (tilePanelRoot) tilePanelRoot.SetActive(false);
+        if (turretPanelRoot) turretPanelRoot.SetActive(false);
+    }
+
+    private static void Shuffle<T>(IList<T> list)
+    {
+        var rng = new System.Random();
+        for (int i = 0; i < list.Count; i++)
+        {
+            int j = rng.Next(i, list.Count);
+            (list[i], list[j]) = (list[j], list[i]);
+        }
     }
 }

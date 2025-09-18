@@ -604,17 +604,22 @@ public class GridGenerator : MonoBehaviour
                 go.name = $"{prefab.name}_({x},{y})";
                 count++;
 
-                //si es pasto asignar tag Grass
                 if (type == TileLayout.TileType.Grass)
                 {
-                    go.tag = "Grass";
+                    go.tag = "Cell";
                     if (go.GetComponent<Collider>() == null)
                     {
                         var col = go.AddComponent<BoxCollider>();
-                        
                         col.size = new Vector3(layout.cellSize, 0.9f, layout.cellSize);
-                        col.center = new Vector3(0f, 0.05f, 0f); 
+                        col.center = new Vector3(0f, 0.05f, 0f);
                     }
+
+                    // Asegurar CellSlot
+                    if (go.GetComponent<CellSlot>() == null)
+                        go.AddComponent<CellSlot>();
+
+                    // (Opcional) poné a todas las celdas en una Layer “Cell” y filtrá el raycast por esa capa
+                    go.layer = LayerMask.NameToLayer("Cell");
                 }
             }
         }
