@@ -555,19 +555,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 79450499}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: TurretController, Assembly-CSharp
-        m_MethodName: OpenSelectionPanel
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
+      m_Calls: []
 --- !u!114 &79450499
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1115,19 +1103,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 255751691}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 1944914743}
-        m_TargetAssemblyTypeName: GridGenerator, Assembly-CSharp
-        m_MethodName: UI_AppendNext
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
+      m_Calls: []
 --- !u!114 &255751691
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2916,6 +2892,7 @@ MonoBehaviour:
   cellLayers:
     serializedVersion: 2
     m_Bits: 8
+  removeWithMiddleClick: 1
 --- !u!1 &990097452
 GameObject:
   m_ObjectHideFlags: 0
@@ -2998,19 +2975,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 990097455}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 1944914743}
-        m_TargetAssemblyTypeName: GridGenerator, Assembly-CSharp
-        m_MethodName: UI_AppendNext
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
+      m_Calls: []
 --- !u!114 &990097455
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3267,19 +3232,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1002334190}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 1944914743}
-        m_TargetAssemblyTypeName: GridGenerator, Assembly-CSharp
-        m_MethodName: UI_AppendNext
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
+      m_Calls: []
 --- !u!114 &1002334190
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5240,19 +5193,7 @@ MonoBehaviour:
       m_Color: {r: 0.32941177, g: 0.46666667, b: 0.7529412, a: 1}
   m_OnValueChanged:
     m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 11500000, guid: d3e678cfe2cc2a94ca41cbf5852b8a67, type: 3}
-        m_TargetAssemblyTypeName: 
-        m_MethodName: 
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: 
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
+      m_Calls: []
   m_AlphaFadeSpeed: 0.15
 --- !u!114 &1545530002
 MonoBehaviour:
