@@ -3,82 +3,63 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class CellSlot : MonoBehaviour
 {
-    [Tooltip("Si se asigna, la torreta se colocará exactamente aquí; si no, usa transform.position.")]
-    public Transform anchor;
+    [Header("Placement")]
+    [SerializeField] private Transform parentForTurrets; // opcional
+    [SerializeField] private float extraYOffset = 0f;    // margen fino opcional
 
-    private GameObject placedTurret;
-
-    /// <summary>¿La celda está libre?</summary>
-    public bool IsEmpty => placedTurret == null;
-
-    /// <summary>Posición final donde instanciar la torreta.</summary>
-    public Vector3 GetPlacePosition()
-        => anchor ? anchor.position : transform.position;
-
-    /// <summary>Marca la celda como ocupada por esta torreta (sin instanciar).</summary>
-    public void Occupy(GameObject turret)
-    {
-        placedTurret = turret;
-    }
-
-    /// <summary>Libera la celda.</summary>
-    public void Vacate()
-    {
-        placedTurret = null;
-    }
-
-    // =========================
-    //  NUEVO: API TryPlace
-    // =========================
+    [Header("State (runtime)")]
+    [SerializeField] private bool occupied = false;
+    [SerializeField] private GameObject currentTurret;
 
     /// <summary>
-    /// Intenta colocar una torreta instanciando el prefab. Devuelve true si pudo.
+    /// Coloca la torreta apoyada sobre la cara superior del collider de la celda.
+    /// Si el pivot del prefab no está en la base, corrige usando Renderer.bounds.
     /// </summary>
-    public bool TryPlace(GameObject turretPrefab)
+    public bool TryPlace(GameObject turretPrefab, float yOffset = 0f)
     {
-        GameObject _;
-        return TryPlace(turretPrefab, out _);
-    }
+        if (occupied || turretPrefab == null) return false;
 
-    /// <summary>
-    /// Intenta colocar una torreta instanciando el prefab. Devuelve true y el objeto instanciado si pudo.
-    /// </summary>
-    public bool TryPlace(GameObject turretPrefab, out GameObject placed)
-    {
-        return TryPlace(turretPrefab, out placed, Quaternion.identity, null);
-    }
-
-    /// <summary>
-    /// Intenta colocar una torreta instanciando el prefab con rotación y parent opcional.
-    /// </summary>
-    public bool TryPlace(GameObject turretPrefab, out GameObject placed, Quaternion rotation, Transform explicitParent)
-    {
-        placed = null;
-
-        if (!IsEmpty || turretPrefab == null)
+        var col = GetComponent<Collider>();
+        if (col == null)
+        {
+            Debug.LogWarning("[CellSlot] La celda no tiene Collider.");
             return false;
+        }
 
-        Vector3 pos = GetPlacePosition();
-        Transform parent = explicitParent ? explicitParent : transform;
+        // 1) Cara superior de la celda
+        var b = col.bounds;
+        Vector3 topCenter = new Vector3(b.center.x, b.max.y, b.center.z);
 
-        placed = Object.Instantiate(turretPrefab, pos, rotation, parent);
-        placed.name = $"{turretPrefab.name}_@{name}";
+        // 2) Instanciar
+        var parent = parentForTurrets ? parentForTurrets : transform;
+        currentTurret = Instantiate(turretPrefab, parent);
+        currentTurret.transform.position = topCenter;
 
-        Occupy(placed);
+        // 3) Corregir por pivot usando el Renderer real
+        var rend = currentTurret.GetComponentInChildren<Renderer>();
+        if (rend != null)
+        {
+            float targetBottom = topCenter.y + yOffset + extraYOffset;
+            float delta = targetBottom - rend.bounds.min.y;
+            currentTurret.transform.position += Vector3.up * delta;
+        }
+        else
+        {
+            // Fallback: subir un poco igual
+            currentTurret.transform.position += Vector3.up * (yOffset + extraYOffset);
+        }
+
+        occupied = true;
         return true;
     }
 
-    /// <summary>
-    /// Variante para proyectos que ya instancian la torreta afuera y solo quieren ocupar la celda.
-    /// </summary>
-    public bool TryPlaceExisting(GameObject alreadyInstantiated)
+    public void Clear()
     {
-        if (!IsEmpty || alreadyInstantiated == null)
-            return false;
-
-        alreadyInstantiated.transform.SetParent(transform, true);
-        alreadyInstantiated.transform.position = GetPlacePosition();
-        Occupy(alreadyInstantiated);
-        return true;
+        if (currentTurret) Destroy(currentTurret);
+        currentTurret = null;
+        occupied = false;
     }
+
+    public bool IsOccupied => occupied;
+    public GameObject GetCurrentTurret() => currentTurret;
 }

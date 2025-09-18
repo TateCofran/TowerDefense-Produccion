@@ -2875,7 +2875,6 @@ GameObject:
   m_Component:
   - component: {fileID: 981907313}
   - component: {fileID: 981907314}
-  - component: {fileID: 981907315}
   m_Layer: 0
   m_Name: TurretPlacer
   m_TagString: Untagged
@@ -2905,36 +2904,18 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 981907312}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 05054c7bc0130634ea554f341c813006, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   ui: {fileID: 465550311}
   cam: {fileID: 963194227}
-  ghostPrefab: {fileID: 0}
-  ghostOffset: {x: 0, y: 0.01, z: 0}
+  ghostPrefab: {fileID: 7333658948748976991, guid: e1603e964454cef4c9e80ce8d6250875, type: 3}
+  ghostOffset: {x: 0, y: 0, z: 0}
   cellLayers:
     serializedVersion: 2
-    m_Bits: 4294967295
---- !u!114 &981907315
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 981907312}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e78f397f6315d7a439a6749311d095b2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  cellLayer:
-    serializedVersion: 2
     m_Bits: 8
-  placementDelay: 1
-  previewYOffset: 1
-  placeYOffset: 1
 --- !u!1 &990097452
 GameObject:
   m_ObjectHideFlags: 0

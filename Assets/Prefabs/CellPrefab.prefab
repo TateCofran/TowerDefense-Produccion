@@ -25,7 +25,7 @@ Transform:
   m_GameObject: {fileID: 157575351930225604}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: 0}
+  m_LocalPosition: {x: 0, y: 0.46, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -153,5 +153,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 89365140003b6ea41bed1ca51bcd42d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mountPoint: {fileID: 3357317822210177302}
+  parentForTurrets: {fileID: 7917832257458904478}
+  extraYOffset: 0
+  occupied: 0
   currentTurret: {fileID: 0}

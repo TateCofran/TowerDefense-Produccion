@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEngine.EventSystems;
 
 public class TurretPlacer : MonoBehaviour
 {
@@ -53,8 +54,8 @@ public class TurretPlacer : MonoBehaviour
     {
         if (!_placing) return;
 
-        var cameraToUse = cam != null ? cam : Camera.main;
-        if (cameraToUse == null) return;
+        var cameraToUse = cam ? cam : Camera.main;
+        if (!cameraToUse) return;
 
         // Cancelar
         if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
@@ -63,39 +64,41 @@ public class TurretPlacer : MonoBehaviour
             return;
         }
 
+        // Evitar clicks a través de la UI
+        if (EventSystem.current && EventSystem.current.IsPointerOverGameObject())
+        {
+            if (_ghost) _ghost.SetActive(false);
+            return;
+        }
+
         // Raycast al mouse
         Ray ray = cameraToUse.ScreenPointToRay(Input.mousePosition);
         if (Physics.Raycast(ray, out var hit, 500f, cellLayers))
         {
-            var go = hit.collider.gameObject;
+            // Buscar slot en el objeto golpeado o sus padres
+            var slot = hit.collider.GetComponentInParent<CellSlot>();
 
-            // filtrar por tag "Cell"
-            if (go.CompareTag("Cell"))
+            if (slot != null && slot.enabled && !slot.IsOccupied)
             {
-                // preview/ghost
-                if (_ghost != null)
+                // Mostrar y posicionar ghost EXACTAMENTE en donde se va a colocar
+                if (_ghost)
                 {
-                    _ghost.transform.position = hit.collider.bounds.center + ghostOffset;
+                    _ghost.SetActive(true);
+                    var slotCol = slot.GetComponent<Collider>();
+                    var b = (slotCol ? slotCol.bounds : hit.collider.bounds);
+                    Vector3 topCenter = new Vector3(b.center.x, b.max.y, b.center.z);
+                    _ghost.transform.position = topCenter + ghostOffset;
                 }
 
-                // click izquierdo = colocar
+                // Click izquierdo = colocar
                 if (Input.GetMouseButtonDown(0))
                 {
-                    // asegurar CellSlot
-                    var slot = go.GetComponent<CellSlot>();
-                    if (slot == null) slot = go.AddComponent<CellSlot>();
+                    var prefab = _selectedTurret ? _selectedTurret.prefab : null;
+                    if (!prefab) return;
 
-                    // obtener prefab desde el SO
-                    GameObject turretPrefab = _selectedTurret != null ? _selectedTurret.prefab : null;
-                    if (turretPrefab == null)
+                    if (slot.TryPlace(prefab)) // tu TryPlace ya coloca en topCenter
                     {
-                        Debug.LogWarning("[TurretPlacer] El SO de la torreta no tiene prefab asignado.");
-                        return;
-                    }
-
-                    if (slot.TryPlace(turretPrefab))
-                    {
-                        Debug.Log($"[TurretPlacer] Torreta colocada en {go.name}");
+                        Debug.Log($"[TurretPlacer] Torreta colocada en {slot.name}");
                         ExitPlacementMode();
                     }
                     else
@@ -106,12 +109,15 @@ public class TurretPlacer : MonoBehaviour
             }
             else
             {
-                if (_ghost != null) _ghost.transform.position = hit.point + ghostOffset;
+                // No es celda válida u ocupada: ocultar ghost
+                if (_ghost) _ghost.SetActive(false);
             }
         }
         else
         {
-            if (_ghost != null) _ghost.transform.position = cameraToUse.transform.position + cameraToUse.transform.forward * 2f;
+            // Nada bajo el mouse: ocultar ghost
+            if (_ghost) _ghost.SetActive(false);
         }
     }
+
 }

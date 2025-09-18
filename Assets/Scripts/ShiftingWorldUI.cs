@@ -47,12 +47,6 @@ public class ShiftingWorldUI : MonoBehaviour
 
     void Update()
     {
-        // --- Modo colocación activo: clic en Cell para instanciar ---
-        if (!placingMode || selectedTurret == null) return;
-
-        var cameraToUse = cam != null ? cam : Camera.main;
-        if (cameraToUse == null) return;
-
         // Cancelar
         if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
         {
@@ -213,15 +207,12 @@ public class ShiftingWorldUI : MonoBehaviour
         }
         else
         {
-            // Guardamos y entramos en modo colocación (el panel se cierra)
-            selectedTurret = so;
-            placingMode = true;
             OnTurretChosen?.Invoke(so);
-            Debug.Log($"[ShiftingWorldUI] Elegiste torreta: {(string.IsNullOrEmpty(so.displayName) ? so.name : so.displayName)} → Modo colocación activo.");
+            Debug.Log($"[ShiftingWorldUI] Elegiste torreta: {(string.IsNullOrEmpty(so.displayName) ? so.name : so.displayName)}");
         }
-
-        Close(); // cerramos panel pero seguimos en colocación
+        Close();
     }
+
 
     // -------- Utilidades de UI --------
     private void BindButton(Button[] buttons, TMP_Text[] labels, int index, string label, Action onClick)
