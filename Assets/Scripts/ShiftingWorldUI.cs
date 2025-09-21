@@ -6,7 +6,7 @@ using TMPro;
 
 public class ShiftingWorldUI : MonoBehaviour
 {
-    public enum PanelMode { Normal, Otro }
+    public enum PanelMode { Normal, Otro, TilePlacement }
 
     [Header("Grid (para tiles)")]
     [SerializeField] private GridGenerator grid;
@@ -22,19 +22,25 @@ public class ShiftingWorldUI : MonoBehaviour
     [SerializeField] private Button[] turretButtons;
     [SerializeField] private TMP_Text[] turretLabels;
 
+    [Header("Exit Buttons")]
+    [SerializeField] private GameObject exitButtonPrefab;
+    [SerializeField] private Canvas exitButtonsCanvas;
+    private List<Button> exitButtons = new List<Button>();
+
     [Header("Torretas (fuente)")]
     [SerializeField] private TurretDatabaseSO turretDatabase;
     [SerializeField] private List<TurretDataSO> turretPool = new();
 
-    // === NUEVO: parámetros de colocación ===
     [Header("Placement")]
-    [SerializeField] private Camera cam;               // si está vacío usa Camera.main
-    [SerializeField] private LayerMask cellLayers = ~0; // filtros de raycast
+    [SerializeField] private Camera cam;
+    [SerializeField] private LayerMask cellLayers = ~0;
     [SerializeField] private float turretYOffset = 0.5f;
 
-    // === NUEVO: estado de colocación ===
-    private TurretDataSO selectedTurret;  // torreta elegida
-    private bool placingMode = false;     // estoy en modo colocación
+    // Estado de colocación
+    private TurretDataSO selectedTurret;
+    private TileLayout selectedTileLayout;
+    private bool placingMode = false;
+    private bool tilePlacingMode = false;
 
     public event Action<TurretDataSO> OnTurretChosen;
 
@@ -44,17 +50,32 @@ public class ShiftingWorldUI : MonoBehaviour
     private readonly List<TileLayout> currentTileOptions = new();
     private readonly List<TurretDataSO> currentTurretOptions = new();
 
-    void Awake() => HideAll();
+    void Awake()
+    {
+        HideAll();
+    }
 
     void Update()
     {
-        // Cancelar
+        HandleTurretPlacementMode();
+
+        // Rotar botones de exit para que miren a la cámara
+        if (tilePlacingMode && exitButtonsCanvas != null && cam != null)
+        {
+            exitButtonsCanvas.transform.rotation = Quaternion.LookRotation(exitButtonsCanvas.transform.position - cam.transform.position);
+        }
+    }
+
+    private void HandleTurretPlacementMode()
+    {
+        if (!placingMode) return;
+
         if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
         {
             CancelPlacement();
             return;
         }
-        // Click izquierdo para colocar
+
         if (Input.GetMouseButtonDown(0))
         {
             Camera c = cam ?? Camera.main;
@@ -63,94 +84,188 @@ public class ShiftingWorldUI : MonoBehaviour
             Ray ray = c.ScreenPointToRay(Input.mousePosition);
             if (Physics.Raycast(ray, out var hit, 500f, cellLayers))
             {
-                // Buscar el slot en el collider o en sus padres
                 var slot = hit.collider.GetComponentInParent<CellSlot>();
-                if (slot == null)
-                {
-                    Debug.Log("[ShiftingWorldUI] No hay CellSlot en el objeto cliqueado.");
-                    return;
-                }
-
-                // (Opcional) Si querés seguir exigiendo el tag:
-                // if (!slot.CompareTag("Cell")) return;  // solo si el slot está en el GO con tag
+                if (slot == null) return;
 
                 if (selectedTurret == null || selectedTurret.prefab == null)
                 {
-                    Debug.LogWarning("[ShiftingWorldUI] La torreta seleccionada no tiene prefab.");
                     CancelPlacement();
                     return;
                 }
 
-                // Intentar colocar con offset Y
                 if (slot.TryPlace(selectedTurret.prefab))
                 {
                     Debug.Log("[ShiftingWorldUI] Torreta colocada.");
                     EndPlacement();
                 }
-                else
-                {
-                    Debug.Log("[ShiftingWorldUI] La celda figura ocupada.");
-                }
             }
         }
-
     }
 
-    private void EndPlacement()
-    {
-        placingMode = false;
-        selectedTurret = null;
-    }
-
-    private void CancelPlacement()
-    {
-        Debug.Log("[ShiftingWorldUI] Colocación cancelada.");
-        EndPlacement();
-    }
-
-    // -------- API que llama el Mechanic --------
+    // -------- API pública --------
     public void ShowNormalReached(Action closedCb = null)
     {
-        tileChoiceLocked = false; // <-- important
+        tileChoiceLocked = false;
         currentMode = PanelMode.Normal;
         onClosed = closedCb;
         BuildNormalOptions();
         tilePanelRoot?.SetActive(true);
         turretPanelRoot?.SetActive(false);
+        HideExitButtons();
     }
-
 
     public void ShowOtherReached(Action closedCb = null)
     {
         currentMode = PanelMode.Otro;
         onClosed = closedCb;
-
         BuildOtherOptions();
         tilePanelRoot?.SetActive(false);
         turretPanelRoot?.SetActive(true);
+        HideExitButtons();
     }
 
-    // -------- Construcción de opciones --------
-    private void BuildNormalOptions()
+    // -------- Lógica de selección de tile --------
+    private void OnChooseTile(int index)
     {
-        currentTileOptions.Clear();
+        if (tileChoiceLocked) return;
+        tileChoiceLocked = true;
 
-        if (grid == null)
+        var chosen = (index >= 0 && index < currentTileOptions.Count) ? currentTileOptions[index] : null;
+        if (chosen == null)
         {
-            Debug.LogWarning("[ShiftingWorldUI] Grid no asignado.");
-            SetButtonsDisabled(tileButtons, tileLabels, "Grid no asignado");
+            Close();
             return;
         }
 
-        var candidates = grid.GetRandomCandidateSet(3);
+        selectedTileLayout = chosen;
+        EnterTilePlacementMode();
+    }
 
+    private void EnterTilePlacementMode()
+    {
+        currentMode = PanelMode.TilePlacement;
+        tilePlacingMode = true;
+
+        // Ocultar panel de selección, mostrar botones de exit
+        tilePanelRoot?.SetActive(false);
+        CreateExitButtons();
+    }
+
+    private void CreateExitButtons()
+    {
+        // Limpiar botones existentes
+        ClearExitButtons();
+
+        var exits = grid.GetAvailableExits();
+        Camera mainCamera = cam ?? Camera.main;
+
+        foreach (var (label, worldPos) in exits)
+        {
+            // Crear botón en la posición mundial del exit
+            if (exitButtonPrefab != null && exitButtonsCanvas != null)
+            {
+                GameObject buttonObj = Instantiate(exitButtonPrefab, exitButtonsCanvas.transform);
+                Button button = buttonObj.GetComponent<Button>();
+
+                if (button != null)
+                {
+                    // Posicionar el botón en la posición mundial del exit
+                    Vector3 screenPos = mainCamera.WorldToScreenPoint(worldPos + Vector3.up * 1f);
+                    button.transform.position = screenPos;
+
+                    // Configurar texto
+                    TMP_Text buttonText = buttonObj.GetComponentInChildren<TMP_Text>();
+                    if (buttonText != null)
+                    {
+                        buttonText.text = label;
+                    }
+
+                    // Configurar evento de clic
+                    string exitLabel = label;
+                    button.onClick.AddListener(() => OnExitButtonClicked(exitLabel));
+
+                    exitButtons.Add(button);
+                }
+            }
+        }
+
+        exitButtonsCanvas?.gameObject.SetActive(true);
+    }
+
+    private void OnExitButtonClicked(string exitLabel)
+    {
+        if (selectedTileLayout == null) return;
+
+        // Encontrar el índice del exit por su label
+        int exitIndex = FindExitIndexByLabel(exitLabel);
+        if (exitIndex == -1) return;
+
+        // Configurar el grid generator para usar el exit seleccionado
+        grid.UI_SetExitByLabel(exitLabel);
+
+        // Colocar el tile
+        bool ok = grid.AppendNextUsingSelectedExitWithLayout(selectedTileLayout);
+
+        if (ok)
+        {
+            Debug.Log($"[ShiftingWorldUI] Tile {selectedTileLayout.name} colocado exitosamente en exit {exitLabel}");
+        }
+        else
+        {
+            Debug.LogWarning($"[ShiftingWorldUI] No se pudo colocar el tile: {selectedTileLayout.name}");
+        }
+
+        ExitTilePlacementMode();
+        Close();
+    }
+
+    private int FindExitIndexByLabel(string label)
+    {
+        var exits = grid.GetAvailableExits();
+        for (int i = 0; i < exits.Count; i++)
+        {
+            if (exits[i].label == label)
+                return i;
+        }
+        return -1;
+    }
+
+    private void ClearExitButtons()
+    {
+        foreach (var button in exitButtons)
+        {
+            if (button != null)
+                Destroy(button.gameObject);
+        }
+        exitButtons.Clear();
+    }
+
+    private void HideExitButtons()
+    {
+        exitButtonsCanvas?.gameObject.SetActive(false);
+        ClearExitButtons();
+    }
+
+    private void ExitTilePlacementMode()
+    {
+        tilePlacingMode = false;
+        selectedTileLayout = null;
+        HideExitButtons();
+    }
+
+    // -------- Métodos existentes --------
+    private void BuildNormalOptions()
+    {
+        currentTileOptions.Clear();
+        if (grid == null) return;
+
+        var candidates = grid.GetRandomCandidateSet(3);
         for (int i = 0; i < 3; i++)
         {
             var layout = (i < candidates.Count) ? candidates[i] : null;
             currentTileOptions.Add(layout);
-
             string label = layout != null ? layout.name : "N/D";
-            int idx = i; // evitar captura de i
+            int idx = i;
             BindButton(tileButtons, tileLabels, i, label, () => OnChooseTile(idx));
         }
     }
@@ -168,7 +283,6 @@ public class ShiftingWorldUI : MonoBehaviour
         if (pool.Count == 0)
         {
             Debug.LogWarning("[ShiftingWorldUI] No hay torretas en la DB o turretPool.");
-            SetButtonsDisabled(turretButtons, turretLabels, "Sin torretas");
             return;
         }
 
@@ -179,31 +293,9 @@ public class ShiftingWorldUI : MonoBehaviour
             currentTurretOptions.Add(so);
 
             string label = !string.IsNullOrEmpty(so.displayName) ? so.displayName : so.name;
-            int idx = i; // evitar captura de i
+            int idx = i;
             BindButton(turretButtons, turretLabels, i, label, () => OnChooseTurret(idx));
         }
-    }
-    private void OnChooseTile(int index)
-    {
-        if (tileChoiceLocked) return;          // <-- evita doble ejecución
-        tileChoiceLocked = true;
-
-        var chosen = (index >= 0 && index < currentTileOptions.Count) ? currentTileOptions[index] : null;
-        if (chosen == null)
-        {
-            Debug.LogWarning("[ShiftingWorldUI] Opción de tile inválida.");
-            Close();
-            return;
-        }
-
-        bool ok = grid.AppendNextUsingSelectedExitWithLayout(chosen);
-        if (!ok) Debug.LogWarning($"[ShiftingWorldUI] No se pudo colocar el layout: {chosen.name}");
-
-        // Deshabilitá los botones inmediatamente para que no puedan re-clickear
-        if (tileButtons != null)
-            foreach (var b in tileButtons) if (b) b.interactable = false;
-
-        Close();
     }
 
     private void OnChooseTurret(int index)
@@ -215,14 +307,28 @@ public class ShiftingWorldUI : MonoBehaviour
         }
         else
         {
+            selectedTurret = so;
+            placingMode = true;
             OnTurretChosen?.Invoke(so);
-            Debug.Log($"[ShiftingWorldUI] Elegiste torreta: {(string.IsNullOrEmpty(so.displayName) ? so.name : so.displayName)}");
+            Debug.Log($"[ShiftingWorldUI] Elegiste torreta: {so.displayName}");
+            return;
         }
         Close();
     }
 
+    private void EndPlacement()
+    {
+        placingMode = false;
+        selectedTurret = null;
+    }
 
-    // -------- Utilidades de UI --------
+    private void CancelPlacement()
+    {
+        Debug.Log("[ShiftingWorldUI] Colocación cancelada.");
+        EndPlacement();
+    }
+
+    // -------- Métodos de UI --------
     private void BindButton(Button[] buttons, TMP_Text[] labels, int index, string label, Action onClick)
     {
         if (buttons == null || index < 0 || index >= buttons.Length) return;
@@ -237,34 +343,6 @@ public class ShiftingWorldUI : MonoBehaviour
         TMP_Text tmp = (labels != null && index < labels.Length) ? labels[index] : null;
         if (tmp == null) tmp = btn.GetComponentInChildren<TMP_Text>(true);
         if (tmp != null) tmp.text = label;
-        else
-        {
-            var legacy = btn.GetComponentInChildren<Text>(true);
-            if (legacy) legacy.text = label;
-        }
-    }
-
-    private void SetButtonsDisabled(Button[] buttons, TMP_Text[] labels, string text)
-    {
-        if (buttons == null) return;
-        for (int i = 0; i < buttons.Length; i++)
-        {
-            var btn = buttons[i];
-            if (!btn) continue;
-
-            btn.onClick.RemoveAllListeners();
-            btn.interactable = false;
-            btn.gameObject.SetActive(true);
-
-            TMP_Text tmp = (labels != null && i < labels.Length) ? labels[i] : null;
-            if (tmp == null) tmp = btn.GetComponentInChildren<TMP_Text>(true);
-            if (tmp) tmp.text = text;
-            else
-            {
-                var legacy = btn.GetComponentInChildren<Text>(true);
-                if (legacy) legacy.text = text;
-            }
-        }
     }
 
     public void Close()
@@ -274,12 +352,15 @@ public class ShiftingWorldUI : MonoBehaviour
         onClosed = null;
         currentTileOptions.Clear();
         currentTurretOptions.Clear();
+        ExitTilePlacementMode();
+        EndPlacement();
     }
 
     private void HideAll()
     {
         if (tilePanelRoot) tilePanelRoot.SetActive(false);
         if (turretPanelRoot) turretPanelRoot.SetActive(false);
+        HideExitButtons();
     }
 
     private static void Shuffle<T>(IList<T> list)

@@ -51,14 +51,20 @@ public class TileLayout : ScriptableObject
         return false;
     }
 
-    public static readonly Vector2Int[] OrthoDirs =
+    /*public static readonly Vector2Int[] OrthoDirs =
     {
         new Vector2Int( 1, 0),
         new Vector2Int(-1, 0),
         new Vector2Int( 0, 1),
         new Vector2Int( 0,-1),
-    };
-
+    };*/
+    public static readonly Vector2Int[] OrthoDirs = new Vector2Int[]
+{
+    Vector2Int.up,
+    Vector2Int.right,
+    Vector2Int.down,
+    Vector2Int.left
+};
     /// <summary>
     /// Autodetecta endpoints: toma todos los nodos Path con un solo vecino Path (grado 1).
     /// Usa el primero como Entry (si no tenías uno válido) y el resto como Exits.

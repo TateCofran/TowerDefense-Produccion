@@ -48,7 +48,7 @@ public class TileLayoutGizmos : MonoBehaviour
         if (drawLastTileAABB && gridGenerator.CurrentLayout != null)
         {
             var L = gridGenerator.CurrentLayout;
-            GridGenerator.OrientedSize(L, gridGenerator.CurrentRotSteps, out int w, out int h);
+            TileOrientationCalculator.OrientedSize(L, gridGenerator.CurrentRotSteps, out int w, out int h);
             float W = w * L.cellSize, H = h * L.cellSize;
 
             Vector3 o = gridGenerator.CurrentWorldOrigin;
@@ -147,6 +147,4 @@ public class TileLayoutGizmos : MonoBehaviour
         Handles.Label(worldPos, text, _labelStyleMain);
     }
 #endif
-
-
 }
