@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 661c8973de2a86f43b198472e907ca0d, type: 3}
-  m_Name: BasicTurret
+  m_Name: FireTurret
   m_EditorClassIdentifier: 
-  id: basic_Turret
+  id: fire_Turret
   type: 
-  displayName: Turret Basic
+  displayName: Fire Turret
   damage: 10
   range: 2
   fireRate: 1

@@ -18,6 +18,11 @@ public class TurretStats : MonoBehaviour, ITurretStats
     [SerializeField] private float currentRange;
     [SerializeField] private float currentFireRate;
 
+    [Header("Level Modifiers")]
+    [SerializeField] private float levelDamageModifier = 1f;
+    [SerializeField] private float levelRangeModifier = 1f;
+    [SerializeField] private float levelFireRateModifier = 1f;
+
     public float Damage => currentDamage;
     public float Range => currentRange;
     public float FireRate => currentFireRate;
@@ -35,19 +40,15 @@ public class TurretStats : MonoBehaviour, ITurretStats
         dataHolder = GetComponent<TurretDataHolder>();
     }
 
-    // === Inicialización desde JSON antiguo ===
-    public void InitializeFromData(TurretDataSO data)
+    public void ApplyLevelModifiers(float damage, float range, float fireRate)
     {
-        float mod = Application.isPlaying ? GameModifiersManager.Instance.turretDamageMultiplier : 1f;
-
-        baseDamage = Mathf.Round(data.damage * mod * 10f) / 10f;
-        baseRange = Mathf.Round(data.range * 10f) / 10f;
-        baseFireRate = Mathf.Round(data.fireRate * 10f) / 10f;
+        baseDamage = damage;
+        baseRange = range;
+        baseFireRate = fireRate;
 
         RecalculateStats();
         UpdateRangeVisualizer();
     }
-
     // === Inicialización desde ScriptableObject ===
     public void InitializeFromSO(TurretDataSO so)
     {

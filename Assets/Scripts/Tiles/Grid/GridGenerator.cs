@@ -19,6 +19,12 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
     [SerializeField] private GameObject grassPrefab;
     [SerializeField] private GameObject pathPrefab;
 
+    [Header("Core")]
+    [SerializeField] private GameObject corePrefab; // Prefab del Core
+    [SerializeField] private Vector3 coreOffset = Vector3.zero; // Offset para posicionamiento
+
+    private GameObject spawnedCore; // Referencia al Core instanciado
+
     [Header("Parent / Salida")]
     [SerializeField] private Transform tilesRoot;
     [SerializeField] private string rootName = "TileChainRoot";
@@ -94,6 +100,12 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
             _exitsCount = 0;
             spatialPartitioner?.ClearSpatialGrid();
             selectedExitIndex = 0;
+
+            if (spawnedCore != null)
+            {
+                Destroy(spawnedCore);
+                spawnedCore = null;
+            }
         }
 
         int rot = 0; bool flip = false;
@@ -101,6 +113,11 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
 
         var parent = CreateTileParent(tilesRoot, tileGroupBaseName + _chainCount);
         int count = InstantiateLayout(initialLayout, worldOrigin, rot, flip, parent);
+
+        if (initialLayout.hasCore) // ← Agrega esta verificación
+        {
+            SpawnCoreAtEntry(initialLayout, worldOrigin, rot, flip);
+        }
 
         TileOrientationCalculator.OrientedSize(initialLayout, rot, out int w, out int h);
         float W = w * initialLayout.cellSize;
@@ -123,7 +140,93 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
 
         Debug.Log($"[GridGenerator] Primer tile instanciado ({count} celdas). Exits disponibles: {GetAvailableExitLabels().Count}");
     }
+    private void SpawnCoreAtEntry(TileLayout layout, Vector3 worldOrigin, int rotSteps, bool flip)
+    {
+        if (corePrefab == null)
+        {
+            Debug.LogWarning("[GridGenerator] No hay corePrefab asignado.");
+            return;
+        }
 
+        // Verificar si este layout debe generar un Core
+        if (!layout.hasCore)
+        {
+            Debug.Log($"[GridGenerator] Layout {layout.name} no genera Core (hasCore = false)");
+            return;
+        }
+
+        // Obtener la celda donde colocar el Core
+        Vector2Int coreCell = layout.GetCoreCell();
+
+        if (!layout.IsPath(coreCell))
+        {
+            Debug.LogWarning($"[GridGenerator] La celda del Core ({coreCell}) no es un Path. Usando entry.");
+            coreCell = layout.entry;
+
+            // Si la entrada tampoco es válida, buscar cualquier path
+            if (!layout.IsPath(coreCell))
+            {
+                for (int y = 0; y < layout.gridHeight; y++)
+                {
+                    for (int x = 0; x < layout.gridWidth; x++)
+                    {
+                        var testCell = new Vector2Int(x, y);
+                        if (layout.IsPath(testCell))
+                        {
+                            coreCell = testCell;
+                            break;
+                        }
+                    }
+                    if (layout.IsPath(coreCell)) break;
+                }
+            }
+        }
+
+        // Obtener la posición orientada
+        Vector2Int coreOriented = TileOrientationCalculator.ApplyOrientationToCell(coreCell, layout, rotSteps, flip);
+
+        // Calcular la posición mundial
+        Vector3 corePosition = worldOrigin + TileOrientationCalculator.CellToWorldLocal(coreOriented, layout, rotSteps, flip);
+        corePosition += coreOffset;
+
+        // Instanciar el Core
+        spawnedCore = Instantiate(corePrefab, corePosition, Quaternion.identity, tilesRoot);
+        spawnedCore.name = "Core";
+
+        // Configurar el Core
+        SetupCoreCell(spawnedCore);
+
+        Debug.Log($"[GridGenerator] Core instanciado en celda {coreCell} -> posición: {corePosition}");
+    }
+    public Vector3 GetCorePosition()
+    {
+        return spawnedCore != null ? spawnedCore.transform.position : Vector3.zero;
+    }
+    private void SetupCoreCell(GameObject coreObject)
+    {
+        if (coreObject == null) return;
+
+        // Configurar tag y layer
+        coreObject.tag = "Core";
+        coreObject.layer = LayerMask.NameToLayer("Core");
+
+        // Asegurar que tenga collider
+        if (coreObject.GetComponent<Collider>() == null)
+        {
+            var collider = coreObject.AddComponent<BoxCollider>();
+            collider.isTrigger = true; // O false según necesites
+        }
+
+        // Opcional: agregar componentes específicos para el Core
+        if (coreObject.GetComponent<Core>() == null)
+        {
+            coreObject.AddComponent<Core>();
+        }
+    }
+    public bool HasCore()
+    {
+        return spawnedCore != null;
+    }
     public void AppendNextUsingSelectedExit()
     {
         int globalIdx = GetGlobalExitIndexFromAvailable(selectedExitIndex);
@@ -470,6 +573,15 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
             map[t.grid] = t.type;
         }
 
+        // Obtener la celda del Core solo si hasCore es true
+        Vector2Int? coreCellToSkip = null;
+        if (layout.hasCore)
+        {
+            Vector2Int coreCell = layout.GetCoreCell();
+            Vector2Int coreOriented = TileOrientationCalculator.ApplyOrientationToCell(coreCell, layout, rotSteps, flip);
+            coreCellToSkip = coreOriented;
+        }
+
         int count = 0;
         for (int y = 0; y < layout.gridHeight; y++)
         {
@@ -477,6 +589,15 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
             {
                 var cell = new Vector2Int(x, y);
                 if (!map.TryGetValue(cell, out var type)) type = TileLayout.TileType.Grass;
+
+                Vector2Int orientedCell = TileOrientationCalculator.ApplyOrientationToCell(cell, layout, rotSteps, flip);
+
+                // Saltar la celda del Core solo si hasCore es true y es la celda correcta
+                if (layout.hasCore && coreCellToSkip.HasValue && orientedCell == coreCellToSkip.Value)
+                {
+                    Debug.Log($"[GridGenerator] Saltando tile en celda del Core: {cell} -> {orientedCell}");
+                    continue;
+                }
 
                 GameObject prefab = (type == TileLayout.TileType.Path) ? pathPrefab : grassPrefab;
                 if (!prefab) continue;
@@ -506,7 +627,6 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         }
         return count;
     }
-
     private void SetupGrassCell(GameObject go, TileLayout layout)
     {
         go.tag = "Cell";

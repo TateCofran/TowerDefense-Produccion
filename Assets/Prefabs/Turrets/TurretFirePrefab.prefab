@@ -137,9 +137,9 @@ GameObject:
   - component: {fileID: 5778865115430028793}
   - component: {fileID: -4348509830824525796}
   - component: {fileID: 7168626268269157596}
-  - component: {fileID: -4133563998839969800}
+  - component: {fileID: -5903944084253475134}
   m_Layer: 0
-  m_Name: TurretBasicPrefab
+  m_Name: TurretFirePrefab
   m_TagString: Turret
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -378,8 +378,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 42db6d8e405bdea4d98facdc3397eb72, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  turretDataSO: {fileID: 11400000, guid: 094b4a67ef6d5dc498c98d6534972009, type: 2}
---- !u!114 &-4133563998839969800
+  turretDataSO: {fileID: 11400000, guid: db240cbb92b3aa94c8ba282896c415c0, type: 2}
+--- !u!114 &-5903944084253475134
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -391,7 +391,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6d2efecd7fe2f1447903332da3671714, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  turretData: {fileID: 11400000, guid: 094b4a67ef6d5dc498c98d6534972009, type: 2}
+  turretData: {fileID: 11400000, guid: db240cbb92b3aa94c8ba282896c415c0, type: 2}
   levelData:
     currentLevel: 1
     currentDupes: 0

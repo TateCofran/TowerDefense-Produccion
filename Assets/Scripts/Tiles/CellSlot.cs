@@ -11,40 +11,29 @@ public class CellSlot : MonoBehaviour
     [SerializeField] private bool occupied = false;
     [SerializeField] private GameObject currentTurret;
 
-    public bool TryPlace(GameObject turretPrefab, float yOffset = 0f)
+    [SerializeField] private ITurretDupeSystem dupeSystem;
+
+    private void Start()
     {
-        if (occupied || turretPrefab == null) return false;
+        dupeSystem = FindFirstObjectByType<TurretDupeSystem>();
+    }
+    public bool TryPlace(GameObject turretPrefab, TurretDataSO turretData = null)
+    {
+        if (occupied) return false;
 
-        var col = GetComponent<Collider>();
-        if (!col)
-        {
-            Debug.LogWarning("[CellSlot] La celda no tiene Collider.");
-            return false;
-        }
-
-        var b = col.bounds;
-        Vector3 topCenter = new Vector3(b.center.x, b.max.y, b.center.z);
-
-        var parent = parentForTurrets ? parentForTurrets : transform;
-        currentTurret = Instantiate(turretPrefab, parent);
-        currentTurret.transform.position = topCenter;
-
-        var rend = currentTurret.GetComponentInChildren<Renderer>();
-        if (rend)
-        {
-            float targetBottom = topCenter.y + yOffset + extraYOffset;
-            float delta = targetBottom - rend.bounds.min.y;
-            currentTurret.transform.position += Vector3.up * delta;
-        }
-        else
-        {
-            currentTurret.transform.position += Vector3.up * (yOffset + extraYOffset);
-        }
-
+        var turret = Instantiate(turretPrefab, transform.position, Quaternion.identity);
+        currentTurret = turret;
         occupied = true;
+
+        // Configurar el data holder si existe
+        var dataHolder = turret.GetComponent<TurretDataHolder>();
+        if (dataHolder != null && turretData != null)
+        {
+            dataHolder.ApplyDataSO(turretData);
+        }
+
         return true;
     }
-
     public bool TryRemove()
     {
         if (!occupied || !currentTurret) return false;

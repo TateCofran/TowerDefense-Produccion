@@ -28,6 +28,15 @@ public class ShiftingWorldMechanic : MonoBehaviour
     private bool normalWaitingChoice = false;
     private bool otherWaitingChoice = false;
 
+    private void Awake()
+    {
+        if (ui != null)
+        {
+            ui.OnTurretChosen += HandleTurretChosen;
+            ui.OnTurretLevelUp += HandleTurretLevelUp; // ← Agrega esta línea
+            ui.OnTurretPlacedSuccessfully += HandleTurretPlacedSuccessfully;
+        }
+    }
     void Update()
     {
         // Cambio de mundo
@@ -109,25 +118,51 @@ public class ShiftingWorldMechanic : MonoBehaviour
 
         if (fireGuard) fireGuard = false;
     }
-    // En ShiftingWorldMechanic.cs
-    private void Awake()
-    {
-        // Si querés hacer algo cuando el jugador elige una torreta:
-        if (ui != null)
-            ui.OnTurretChosen += HandleTurretChosen;
-    }
-
     private void OnDestroy()
     {
         if (ui != null)
+        {
             ui.OnTurretChosen -= HandleTurretChosen;
+            ui.OnTurretLevelUp -= HandleTurretLevelUp; // ← Y esta línea
+            ui.OnTurretPlacedSuccessfully -= HandleTurretPlacedSuccessfully;
+        }
     }
+    // Agrega este método para manejar el nivel up
+    private void HandleTurretLevelUp(TurretDataSO turret, TurretLevelData levelData)
+    {
+        Debug.Log($"🎯 [ShiftingWorldMechanic] {turret.displayName} subió al nivel {levelData.currentLevel}!");
+        Debug.Log($"Estadísticas: Daño x{levelData.damageMultiplier:F1}, " +
+                 $"Rango x{levelData.rangeMultiplier:F1}, " +
+                 $"Velocidad x{levelData.fireRateMultiplier:F1}");
 
+        // Aquí puedes agregar efectos globales de nivel up
+        // Ej: sonidos, partículas, logros, etc.
+    }
     // Recibe la torreta elegida desde la UI
     private void HandleTurretChosen(TurretDataSO so)
     {
-        Debug.Log($"[ShiftingWorldMechanic] Torreta elegida: {(string.IsNullOrEmpty(so.displayName) ? so.name : so.displayName)}");
-        // TODO: acá tu lógica (spawn de torreta, abrir tienda, etc.)
+        Debug.Log($"[ShiftingWorldMechanic] Torreta elegida: {so.displayName}");
+        // NO resetear el progreso aquí, solo cuando se coloque exitosamente
+    }
+    private void HandleTurretPlacedSuccessfully(World world)
+    {
+        // Resetear el progreso SOLO cuando la torreta se coloca exitosamente
+        if (world == World.Normal)
+        {
+            normalProgress = 0f;
+            normalWaitingChoice = false;
+            normalPanelOpen = false;
+            fireGuard = false;
+            Debug.Log("[ShiftingWorldMechanic] Progreso Normal resetado a 0");
+        }
+        else
+        {
+            otherProgress = 0f;
+            otherWaitingChoice = false;
+            otherPanelOpen = false;
+            fireGuard = false;
+            Debug.Log("[ShiftingWorldMechanic] Progreso Otro resetado a 0");
+        }
     }
     private void ResetAllProgressAndPanels()
     {

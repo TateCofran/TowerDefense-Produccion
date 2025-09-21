@@ -16,6 +16,8 @@ MonoBehaviour:
   gridHeight: 5
   cellSize: 1
   origin: {x: 0, y: 0, z: 0}
+  hasCore: 0
+  coreCell: {x: -1, y: -1}
   tiles:
   - grid: {x: 0, y: 0}
     type: 0

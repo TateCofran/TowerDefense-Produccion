@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
+using static ShiftingWorldMechanic;
 
 public class ShiftingWorldUI : MonoBehaviour
 {
@@ -36,6 +37,14 @@ public class ShiftingWorldUI : MonoBehaviour
     [SerializeField] private LayerMask cellLayers = ~0;
     [SerializeField] private float turretYOffset = 0.5f;
 
+    [Header("Sistema de Dupes")]
+    [SerializeField] private bool enableDupesSystem = true;
+
+    private ITurretDupeSystem dupeSystem;
+
+    public event Action<World> OnTurretPlacedSuccessfully;
+    public event Action<TurretDataSO, TurretLevelData> OnTurretLevelUp;
+
     // Estado de colocación
     private TurretDataSO selectedTurret;
     private TileLayout selectedTileLayout;
@@ -54,7 +63,10 @@ public class ShiftingWorldUI : MonoBehaviour
     {
         HideAll();
     }
-
+    private void Start()
+    {
+        dupeSystem = FindFirstObjectByType<TurretDupeSystem>();
+    }
     void Update()
     {
         HandleTurretPlacementMode();
@@ -65,7 +77,37 @@ public class ShiftingWorldUI : MonoBehaviour
             exitButtonsCanvas.transform.rotation = Quaternion.LookRotation(exitButtonsCanvas.transform.position - cam.transform.position);
         }
     }
+    // En el método donde manejas los dupes
+    private void HandleDupeSystem(TurretDataSO turret)
+    {
+        if (!enableDupesSystem || dupeSystem == null) return;
 
+        // Guardar el nivel anterior para detectar si subió de nivel
+        var previousLevelData = dupeSystem.GetTurretLevelData(turret);
+        int previousLevel = previousLevelData.currentLevel;
+
+        // Agregar dupe
+        dupeSystem.AddDupe(turret);
+
+        // Obtener los nuevos datos de nivel
+        var newLevelData = dupeSystem.GetTurretLevelData(turret);
+
+        // Verificar si subió de nivel
+        if (newLevelData.currentLevel > previousLevel)
+        {
+            HandleTurretLevelUp(turret, newLevelData);
+        }
+    }
+    private void HandleTurretLevelUp(TurretDataSO turret, TurretLevelData levelData)
+    {
+        Debug.Log($" {turret.displayName} subió al nivel {levelData.currentLevel}!");
+
+        // Opcional: puedes mostrar un efecto visual o sonido aquí
+        // ShowLevelUpEffect(turret, levelData);
+
+        // Disparar el evento
+        OnTurretLevelUp?.Invoke(turret, levelData);
+    }
     private void HandleTurretPlacementMode()
     {
         if (!placingMode) return;
@@ -93,15 +135,24 @@ public class ShiftingWorldUI : MonoBehaviour
                     return;
                 }
 
-                if (slot.TryPlace(selectedTurret.prefab))
+                if (slot.TryPlace(selectedTurret.prefab, selectedTurret))
                 {
-                    Debug.Log("[ShiftingWorldUI] Torreta colocada.");
+                    Debug.Log("[ShiftingWorldUI] Torreta colocada exitosamente.");
+
+                    // Notificar que la torreta fue colocada exitosamente
+                    OnTurretPlacedSuccessfully?.Invoke(GetCurrentWorld());
+
                     EndPlacement();
+                    Close(); // ← Solo cerrar después de colocar exitosamente
+                }
+                else
+                {
+                    Debug.Log("[ShiftingWorldUI] La celda está ocupada.");
+                    // No cerrar el UI, permitir intentar otra celda
                 }
             }
         }
     }
-
     // -------- API pública --------
     public void ShowNormalReached(Action closedCb = null)
     {
@@ -113,7 +164,23 @@ public class ShiftingWorldUI : MonoBehaviour
         turretPanelRoot?.SetActive(false);
         HideExitButtons();
     }
+    private void EnterTurretPlacementMode()
+    {
+        // Ocultar panel de selección, pero mantener el UI activo para colocación
+        turretPanelRoot?.SetActive(false);
 
+        // Mostrar mensaje o indicador visual de modo colocación
+        Debug.Log("Modo colocación: Haz clic en una celda para colocar la torreta");
+
+        // Opcional: puedes agregar un UI de feedback para el modo colocación
+        // ShowPlacementUI();
+    }
+    private World GetCurrentWorld()
+    {
+        // Necesitas determinar si estás en mundo Normal u Otro
+        // Basado en tu currentMode o otra lógica
+        return currentMode == PanelMode.Normal ? World.Normal : World.Otro;
+    }
     public void ShowOtherReached(Action closedCb = null)
     {
         currentMode = PanelMode.Otro;
@@ -292,7 +359,7 @@ public class ShiftingWorldUI : MonoBehaviour
             var so = pool[i % pool.Count];
             currentTurretOptions.Add(so);
 
-            string label = !string.IsNullOrEmpty(so.displayName) ? so.displayName : so.name;
+            string label = GetTurretDisplayName(so); // ← Usa el método que muestra el nivel
             int idx = i;
             BindButton(turretButtons, turretLabels, i, label, () => OnChooseTurret(idx));
         }
@@ -304,18 +371,31 @@ public class ShiftingWorldUI : MonoBehaviour
         if (so == null || so.prefab == null)
         {
             Debug.LogWarning("[ShiftingWorldUI] Opción de torreta inválida.");
-        }
-        else
-        {
-            selectedTurret = so;
-            placingMode = true;
-            OnTurretChosen?.Invoke(so);
-            Debug.Log($"[ShiftingWorldUI] Elegiste torreta: {so.displayName}");
+            Close();
             return;
         }
-        Close();
-    }
 
+        // Manejar sistema de dupes
+        HandleDupeSystem(so);
+
+        selectedTurret = so;
+        placingMode = true;
+        OnTurretChosen?.Invoke(so);
+
+        // NO cerrar el panel aquí, solo entrar en modo colocación
+        Debug.Log($"[ShiftingWorldUI] Elegiste torreta: {so.displayName}. Selecciona una celda para colocarla.");
+
+        // Cambiar a modo colocación
+        EnterTurretPlacementMode();
+    }
+    private string GetTurretDisplayName(TurretDataSO turret)
+    {
+        if (!enableDupesSystem || dupeSystem == null)
+            return !string.IsNullOrEmpty(turret.displayName) ? turret.displayName : turret.name;
+
+        var levelData = dupeSystem.GetTurretLevelData(turret);
+        return $"{(!string.IsNullOrEmpty(turret.displayName) ? turret.displayName : turret.name)}\n{levelData.GetStatusText()}";
+    }
     private void EndPlacement()
     {
         placingMode = false;
@@ -326,6 +406,7 @@ public class ShiftingWorldUI : MonoBehaviour
     {
         Debug.Log("[ShiftingWorldUI] Colocación cancelada.");
         EndPlacement();
+        Close(); // Cerrar el UI al cancelar
     }
 
     // -------- Métodos de UI --------
