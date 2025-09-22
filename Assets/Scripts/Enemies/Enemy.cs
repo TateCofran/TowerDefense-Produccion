@@ -1,61 +1,63 @@
 using UnityEngine;
-using UnityEngine.UI;
 
 public class Enemy : MonoBehaviour
 {
-    public float maxHealth = 100f;
-    public float currentHealth;
-    public float moveSpeed = 1f;
+    private Vector3[] pathPositions;
+    private int currentPathIndex = 0;
 
-    public Canvas healthCanvas;
-    public Image healthBar;
+    [Header("Settings")]
+    public float speed = 2f;
+    public float arrivalThreshold = 0.3f;
 
-    private void Start()
+    public void Initialize(Vector3 spawnPosition, Transform coreTransform, SpawnManager manager)
     {
-        currentHealth = maxHealth;
+        currentPathIndex = 0;
 
-        // Crear Canvas y barra de vida si no tiene
-        if (healthCanvas == null)
+        // Usar Dijkstra REAL
+        DijkstraPathfinder pathfinder = FindObjectOfType<DijkstraPathfinder>();
+        if (pathfinder != null)
         {
-            GameObject canvasObj = new GameObject("HealthCanvas");
-            canvasObj.transform.SetParent(transform);
-            canvasObj.transform.localPosition = new Vector3(0, 2f, 0); // altura sobre el enemigo
+            pathPositions = pathfinder.FindPath(spawnPosition, coreTransform.position);
+            Debug.Log("Dijkstra retorno camino de " + (pathPositions?.Length ?? 0) + " puntos");
+        }
+        else
+        {
+            Debug.LogError("DijkstraPathfinder no encontrado");
+            pathPositions = new Vector3[] { spawnPosition, coreTransform.position };
+        }
 
-            healthCanvas = canvasObj.AddComponent<Canvas>();
-            healthCanvas.renderMode = RenderMode.WorldSpace;
-            healthCanvas.transform.localScale = Vector3.one * 0.1f;
+        transform.position = spawnPosition;
 
-            GameObject barObj = new GameObject("HealthBar");
-            barObj.transform.SetParent(canvasObj.transform);
-            healthBar = barObj.AddComponent<Image>();
-            healthBar.color = Color.green;
-
-            RectTransform rt = healthBar.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(1f, 0.2f);
-            rt.localPosition = Vector3.zero;
+        // Debug del camino
+        if (pathPositions != null)
+        {
+            for (int i = 0; i < pathPositions.Length; i++)
+            {
+                Debug.Log($"Camino[{i}]: {pathPositions[i]}");
+            }
         }
     }
 
-    private void Update()
+    void Update()
     {
-        // Actualizar barra de vida
-        if (healthBar != null)
+        if (pathPositions == null || currentPathIndex >= pathPositions.Length) return;
+
+        MoveToNextPoint();
+    }
+
+    void MoveToNextPoint()
+    {
+        Vector3 target = pathPositions[currentPathIndex];
+
+        // Rotar y mover
+        transform.rotation = Quaternion.LookRotation((target - transform.position).normalized);
+        transform.position = Vector3.MoveTowards(transform.position, target, speed * Time.deltaTime);
+
+        if (Vector3.Distance(transform.position, target) <= arrivalThreshold)
         {
-            healthBar.fillAmount = currentHealth / maxHealth;
-            if (currentHealth / maxHealth > 0.5f) healthBar.color = Color.green;
-            else if (currentHealth / maxHealth > 0.2f) healthBar.color = Color.yellow;
-            else healthBar.color = Color.red;
+            currentPathIndex++;
         }
     }
 
-    public void TakeDamage(float amount)
-    {
-        currentHealth -= amount;
-        if (currentHealth <= 0f)
-        {
-            Destroy(gameObject);
-        }
-    }
+    // ... resto de métodos (TakeDamage, Die, etc) ...
 }
-
-

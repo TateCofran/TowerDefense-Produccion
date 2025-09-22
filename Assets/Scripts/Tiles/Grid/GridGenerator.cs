@@ -63,6 +63,7 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
     private int _chainCount = 0;
     private int _exitsCount = 0;
     private System.Random _rng = new System.Random();
+    private List<Vector3> spawnPoints = new List<Vector3>();
 
     [SerializeField] private int selectedExitIndex = 0;
 
@@ -79,6 +80,36 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
 
         tilePoolManager?.InitializePools();
     }
+
+    #region Métodos Públicos Adicionales
+    public int GetChainCount()
+    {
+        return _chainCount;
+    }
+
+    public PlacedTile GetPlacedTile(int index)
+    {
+        if (index >= 0 && index < _chainCount)
+            return _chainArray[index];
+        return new PlacedTile();
+    }
+
+    public List<PlacedTile> GetAllPlacedTiles()
+    {
+        var tiles = new List<PlacedTile>();
+        for (int i = 0; i < _chainCount; i++)
+        {
+            tiles.Add(_chainArray[i]);
+        }
+        return tiles;
+    }
+
+    public List<Vector3> SpawnPoints
+    {
+        get { return new List<Vector3>(spawnPoints); }
+    }
+
+    #endregion
 
     #region Implementación de ITileGenerator
     public void GenerateFirst()
@@ -450,6 +481,7 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
     #endregion
 
     #region Métodos Internos
+   
     private bool AppendTileToExit(ExitRecord chosen)
     {
         int tileIdx = chosen.tileIndex;
@@ -554,13 +586,6 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
     {
         // Implementación asíncrona simplificada
         yield return null;
-    }
-
-    public PlacedTile GetPlacedTile(int index)
-    {
-        if (index >= 0 && index < _chainCount)
-            return _chainArray[index];
-        return new PlacedTile();
     }
 
     private int InstantiateLayout(TileLayout layout, Vector3 worldOrigin, int rotSteps, bool flip, Transform parent)
@@ -916,6 +941,7 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         return false;
     }
     #endregion
+
     #region Métodos adicionales para ShiftingWorldUI
     public List<TileLayout> GetRandomCandidateSet(int count)
     {
@@ -1027,6 +1053,131 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
             selectedExitIndex = 0;
         }
         return false;
+    }
+    #endregion
+
+    #region Métodos para Spawn en Finales de Camino
+
+    // Método principal: Obtener puntos de spawn en finales de camino
+    public List<Vector3> GetSpawnPoints()
+    {
+        var spawnPoints = new List<Vector3>();
+
+        for (int tileIndex = 0; tileIndex < _chainCount; tileIndex++)
+        {
+            var tile = GetPlacedTile(tileIndex);
+            if (tile.layout?.exits == null) continue;
+
+            foreach (var exitCell in tile.layout.exits)
+            {
+                if (IsValidSpawnPoint(tile, exitCell))
+                {
+                    Vector3 worldPos = CalculateWorldPosition(tile, exitCell);
+
+                    // Verificar que no sea duplicado
+                    if (!IsDuplicateSpawnPoint(worldPos, spawnPoints))
+                    {
+                        spawnPoints.Add(worldPos);
+                        Debug.Log($"[Spawn] Punto agregado en tile {tileIndex}, celda {exitCell}");
+                    }
+                }
+            }
+        }
+
+        // Fallback: si no hay spawn points, usar el último tile
+        if (spawnPoints.Count == 0 && _chainCount > 0)
+        {
+            spawnPoints.AddRange(GetFallbackSpawnPoints());
+        }
+
+        Debug.Log($"[Spawn] Total spawn points: {spawnPoints.Count}");
+        return spawnPoints;
+    }
+
+    // Verificar si una celda es válida para spawn
+    private bool IsValidSpawnPoint(PlacedTile tile, Vector2Int cell)
+    {
+        // 1. Debe ser una celda de path
+        if (!tile.layout.IsInside(cell) || !tile.layout.IsPath(cell))
+            return false;
+
+        // 2. Debe ser un final de camino (solo 1 vecino path)
+        return CountPathNeighbors(tile, cell) == 1;
+    }
+
+    // Contar vecinos que son path
+    private int CountPathNeighbors(PlacedTile tile, Vector2Int cell)
+    {
+        int pathNeighbors = 0;
+        foreach (var dir in TileLayout.OrthoDirs)
+        {
+            var neighbor = cell + dir;
+            if (tile.layout.IsInside(neighbor) && tile.layout.IsPath(neighbor))
+            {
+                pathNeighbors++;
+            }
+        }
+        return pathNeighbors;
+    }
+
+    // Calcular posición mundial
+    private Vector3 CalculateWorldPosition(PlacedTile tile, Vector2Int cell)
+    {
+        return tile.worldOrigin +
+            TileOrientationCalculator.CellToWorldLocal(cell, tile.layout, tile.rotSteps, tile.flipped);
+    }
+
+    // Verificar duplicados
+    private bool IsDuplicateSpawnPoint(Vector3 newPoint, List<Vector3> existingPoints, float threshold = 0.1f)
+    {
+        foreach (var point in existingPoints)
+        {
+            if (Vector3.Distance(point, newPoint) < threshold)
+                return true;
+        }
+        return false;
+    }
+
+    // Fallback: spawn points de emergencia
+    private List<Vector3> GetFallbackSpawnPoints()
+    {
+        var fallbackPoints = new List<Vector3>();
+
+        if (_chainCount > 0)
+        {
+            var lastTile = GetPlacedTile(_chainCount - 1);
+            if (lastTile.layout?.exits != null)
+            {
+                foreach (var exitCell in lastTile.layout.exits)
+                {
+                    Vector3 worldPos = CalculateWorldPosition(lastTile, exitCell);
+                    fallbackPoints.Add(worldPos);
+                }
+            }
+
+            // Si aún no hay puntos, usar una esquina del último tile
+            if (fallbackPoints.Count == 0)
+            {
+                Vector3 cornerPos = lastTile.worldOrigin + new Vector3(lastTile.layout.cellSize, 0, lastTile.layout.cellSize);
+                fallbackPoints.Add(cornerPos);
+            }
+        }
+
+        Debug.LogWarning("[Spawn] Usando spawn points de fallback");
+        return fallbackPoints;
+    }
+
+    // Método para debugging visual
+    public void DebugSpawnPoints()
+    {
+        var spawnPoints = GetSpawnPoints();
+        Debug.Log($"=== SPAWN POINTS DEBUG ===");
+        Debug.Log($"Total points: {spawnPoints.Count}");
+
+        for (int i = 0; i < spawnPoints.Count; i++)
+        {
+            Debug.Log($"Point {i}: {spawnPoints[i]}");
+        }
     }
     #endregion
 }
