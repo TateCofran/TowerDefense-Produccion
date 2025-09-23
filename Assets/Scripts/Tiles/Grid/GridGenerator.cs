@@ -67,9 +67,100 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
 
     [SerializeField] private int selectedExitIndex = 0;
 
+    #region Spawn Exits & Gizmos
+
+    [Header("Spawn / Exits")]
+    [SerializeField] private float minDistanceToCore = 0f;
+    [SerializeField] private bool excludeCoreNeighbors = true;
+
+    [Header("Gizmos de Exits")]
+    [SerializeField] private bool drawExitGizmos = true;
+    [SerializeField] private bool drawExitLabels = true;
+    [SerializeField] private float exitGizmoY = 0.05f;
+    [SerializeField] private float exitSphereRadius = 0.18f;
+    [SerializeField] private Color colorOpenExit = new Color(0.1f, 0.85f, 0.2f, 1f);
+    [SerializeField] private Color colorUsedOrClosedExit = new Color(1f, 0.5f, 0.1f, 1f);
+    [SerializeField] private Color colorLastUsed = new Color(1f, 1f, 0.2f, 1f);
+    [SerializeField] private Color colorCore = new Color(0f, 0.9f, 0.9f, 1f);
+
+    [Header("Historial de spawns usados")]
+    [SerializeField] private int lastUsedCapacity = 6;
+    private readonly Queue<Vector3> _lastUsedSpawns = new Queue<Vector3>();
+
+    // Round-robin opcional
+    private int _spawnRR = 0;
+
+    #endregion
+    #region Spawn Exits Helpers
+    // === EXIT RUNNERS ===
+    [Header("Exit Runners")]
+    [SerializeField] private GameObject exitRunnerPrefab; // Prefab a spawnear en cada EXIT abierto
+    [SerializeField] private float exitRunnerSpeed = 3.5f;
+    [SerializeField] private float exitRunnerHeightOffset = 0.05f;
+    [SerializeField] private bool autoSpawnRunnersOnGenerate = false;   // Opcional: spawnear automáticamente en GenerateFirst
+    [SerializeField] private bool autoSpawnRunnersOnAppend = false;     // Opcional: spawnear automáticamente tras un Append
+
+    [Header("Exit Runners (Path)")]
+
+    [SerializeField] private float runnerSpeed = 3.5f;
+    [SerializeField] private float runnerYOffset = 0.05f;
+
+    private bool IsCoreNeighborWorld(Vector3 exitWorld)
+    {
+        var core = GameObject.FindGameObjectWithTag("Core")?.transform;
+        if (!core) return false;
+
+        // Vecinos inmediatos: chequeo por distancia ~ cellSize/2
+        float cell = (_chainCount > 0 && _chainArray[0].layout) ? _chainArray[0].layout.cellSize : 1f;
+        return Vector3.Distance(new Vector3(exitWorld.x, 0f, exitWorld.z), new Vector3(core.position.x, 0f, core.position.z)) < (cell * 1.1f);
+    }
+
+    private Vector3 ExitToWorld(ExitRecord ex)
+    {
+        var pt = GetPlacedTile(ex.tileIndex);
+        return pt.worldOrigin + TileOrientationCalculator.CellToWorldLocal(ex.cell, pt.layout, pt.rotSteps, pt.flipped);
+    }
+
+    /// <summary>
+    /// Devuelve todas las salidas “abiertas” (no Used ni Closed) en coordenadas de mundo.
+    /// </summary>
+    private List<Vector3> GetOpenExitWorldPositions()
+    {
+        var list = new List<Vector3>();
+        for (int i = 0; i < _exitsCount; i++)
+        {
+            var ex = _exitsArray[i];
+            if (ex.Used || ex.Closed) continue;
+            list.Add(ExitToWorld(ex));
+        }
+        return list;
+    }
+
+    private void MarkSpawnUsed(Vector3 worldPos)
+    {
+        _lastUsedSpawns.Enqueue(worldPos);
+        while (_lastUsedSpawns.Count > Mathf.Max(1, lastUsedCapacity))
+            _lastUsedSpawns.Dequeue();
+    }
+
+    #endregion
+
     private void Start()
     {
         InitializeDependencies();
+
+
+        GenerateFirst(); // crea el primer tile y (si corresponde) el Core
+
+    }
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.F))
+        {
+            var exits = GetAvailableExits(); // (label, worldPos) solo abiertos/No usados
+            foreach (var (_, worldPos) in exits)
+                SpawnRunnerFollowingPath(worldPos);
+        }
     }
 
     private void InitializeDependencies()
@@ -145,7 +236,7 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         var parent = CreateTileParent(tilesRoot, tileGroupBaseName + _chainCount);
         int count = InstantiateLayout(initialLayout, worldOrigin, rot, flip, parent);
 
-        if (initialLayout.hasCore) // ← Agrega esta verificación
+        if (initialLayout.hasCore)
         {
             SpawnCoreAtEntry(initialLayout, worldOrigin, rot, flip);
         }
@@ -170,7 +261,10 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         AddTileExitsToPool(_chainCount - 1, excludeAssetCell: null);
 
         Debug.Log($"[GridGenerator] Primer tile instanciado ({count} celdas). Exits disponibles: {GetAvailableExitLabels().Count}");
+        if (autoSpawnRunnersOnGenerate)
+            SpawnRunnersAtAllOpenExits();
     }
+
     private void SpawnCoreAtEntry(TileLayout layout, Vector3 worldOrigin, int rotSteps, bool flip)
     {
         if (corePrefab == null)
@@ -179,14 +273,12 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
             return;
         }
 
-        // Verificar si este layout debe generar un Core
         if (!layout.hasCore)
         {
             Debug.Log($"[GridGenerator] Layout {layout.name} no genera Core (hasCore = false)");
             return;
         }
 
-        // Obtener la celda donde colocar el Core
         Vector2Int coreCell = layout.GetCoreCell();
 
         if (!layout.IsPath(coreCell))
@@ -194,7 +286,6 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
             Debug.LogWarning($"[GridGenerator] La celda del Core ({coreCell}) no es un Path. Usando entry.");
             coreCell = layout.entry;
 
-            // Si la entrada tampoco es válida, buscar cualquier path
             if (!layout.IsPath(coreCell))
             {
                 for (int y = 0; y < layout.gridHeight; y++)
@@ -213,51 +304,46 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
             }
         }
 
-        // Obtener la posición orientada
         Vector2Int coreOriented = TileOrientationCalculator.ApplyOrientationToCell(coreCell, layout, rotSteps, flip);
-
-        // Calcular la posición mundial
         Vector3 corePosition = worldOrigin + TileOrientationCalculator.CellToWorldLocal(coreOriented, layout, rotSteps, flip);
         corePosition += coreOffset;
 
-        // Instanciar el Core
         spawnedCore = Instantiate(corePrefab, corePosition, Quaternion.identity, tilesRoot);
         spawnedCore.name = "Core";
 
-        // Configurar el Core
         SetupCoreCell(spawnedCore);
 
         Debug.Log($"[GridGenerator] Core instanciado en celda {coreCell} -> posición: {corePosition}");
     }
+
     public Vector3 GetCorePosition()
     {
         return spawnedCore != null ? spawnedCore.transform.position : Vector3.zero;
     }
+
     private void SetupCoreCell(GameObject coreObject)
     {
         if (coreObject == null) return;
 
-        // Configurar tag y layer
         coreObject.tag = "Core";
-        coreObject.layer = LayerMask.NameToLayer("Core");
 
-        // Asegurar que tenga collider
         if (coreObject.GetComponent<Collider>() == null)
         {
             var collider = coreObject.AddComponent<BoxCollider>();
-            collider.isTrigger = true; // O false según necesites
+            collider.isTrigger = true;
         }
 
-        // Opcional: agregar componentes específicos para el Core
         if (coreObject.GetComponent<Core>() == null)
         {
             coreObject.AddComponent<Core>();
         }
     }
+
     public bool HasCore()
     {
         return spawnedCore != null;
     }
+
     public void AppendNextUsingSelectedExit()
     {
         int globalIdx = GetGlobalExitIndexFromAvailable(selectedExitIndex);
@@ -285,6 +371,7 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
                 selectedExitIndex = 0;
             }
         }
+
     }
 
     public IEnumerator AppendNextAsync()
@@ -311,6 +398,9 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
             chosen.SetUsed(true);
             _exitsArray[globalIdx] = chosen;
             RelabelAvailableExits();
+            if (autoSpawnRunnersOnAppend)
+                SpawnRunnersAtAllOpenExits();
+
         }
         else
         {
@@ -481,7 +571,7 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
     #endregion
 
     #region Métodos Internos
-   
+
     private bool AppendTileToExit(ExitRecord chosen)
     {
         int tileIdx = chosen.tileIndex;
@@ -652,6 +742,7 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         }
         return count;
     }
+
     private void SetupGrassCell(GameObject go, TileLayout layout)
     {
         go.tag = "Cell";
@@ -1058,54 +1149,122 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
 
     #region Métodos para Spawn en Finales de Camino
 
-    // Método principal: Obtener puntos de spawn en finales de camino
+    // Método principal: Obtener puntos de spawn en finales de camino (exits abiertos)
     public List<Vector3> GetSpawnPoints()
     {
-        var spawnPoints = new List<Vector3>();
+        var result = new List<Vector3>();
 
-        for (int tileIndex = 0; tileIndex < _chainCount; tileIndex++)
+        // 1) Tomamos exits abiertos (los que todavía no se usaron ni cerraron)
+        var openExits = GetOpenExitWorldPositions();
+
+        // 2) Filtramos por distancia al Core y vecinos del Core si se pide
+        Transform core = GameObject.FindGameObjectWithTag("Core")?.transform;
+        foreach (var w in openExits)
         {
-            var tile = GetPlacedTile(tileIndex);
-            if (tile.layout?.exits == null) continue;
+            if (excludeCoreNeighbors && IsCoreNeighborWorld(w))
+                continue;
 
-            foreach (var exitCell in tile.layout.exits)
+            if (core && minDistanceToCore > 0f)
             {
-                if (IsValidSpawnPoint(tile, exitCell))
-                {
-                    Vector3 worldPos = CalculateWorldPosition(tile, exitCell);
-
-                    // Verificar que no sea duplicado
-                    if (!IsDuplicateSpawnPoint(worldPos, spawnPoints))
-                    {
-                        spawnPoints.Add(worldPos);
-                        Debug.Log($"[Spawn] Punto agregado en tile {tileIndex}, celda {exitCell}");
-                    }
-                }
+                if (Vector3.Distance(new Vector3(w.x, 0f, w.z), new Vector3(core.position.x, 0f, core.position.z)) < minDistanceToCore)
+                    continue;
             }
+
+            // Evitar duplicados por floating point
+            bool duplicate = false;
+            for (int i = 0; i < result.Count; i++)
+            {
+                if (Vector3.Distance(result[i], w) < 0.05f) { duplicate = true; break; }
+            }
+            if (!duplicate) result.Add(w);
         }
 
-        // Fallback: si no hay spawn points, usar el último tile
-        if (spawnPoints.Count == 0 && _chainCount > 0)
-        {
-            spawnPoints.AddRange(GetFallbackSpawnPoints());
-        }
+        // 3) Fallback si no hay
+        if (result.Count == 0)
+            result = GetFallbackSpawnPoints();
 
-        Debug.Log($"[Spawn] Total spawn points: {spawnPoints.Count}");
-        return spawnPoints;
+        // 4) Guardamos en cache pública si querés consultarlo desde afuera
+        spawnPoints = new List<Vector3>(result);
+        return result;
     }
+    /// <summary>Devuelve el próximo spawn point en round-robin.</summary>
+    public Vector3 GetNextSpawnRoundRobin()
+    {
+        var points = GetSpawnPoints();
+        if (points.Count == 0) return Vector3.zero;
+        if (_spawnRR < 0) _spawnRR = 0;
+        var idx = _spawnRR % points.Count;
+        _spawnRR = (_spawnRR + 1) % points.Count;
+        var chosen = points[idx];
+        MarkSpawnUsed(chosen);
+        return chosen;
+    }
+    private void OnDrawGizmos()
+    {
+        if (!drawExitGizmos) return;
+
+        // Core
+        var core = GameObject.FindGameObjectWithTag("Core")?.transform;
+        if (core)
+        {
+            Gizmos.color = colorCore;
+            Gizmos.DrawCube(new Vector3(core.position.x, exitGizmoY, core.position.z), Vector3.one * (exitSphereRadius * 1.2f));
+#if UNITY_EDITOR
+            if (drawExitLabels)
+                UnityEditor.Handles.Label(core.position + Vector3.up * (exitSphereRadius * 1.6f), "CORE", new GUIStyle(UnityEditor.EditorStyles.boldLabel) { fontSize = 11 });
+#endif
+        }
+
+        // Exits abiertos (verdes)
+        var open = GetOpenExitWorldPositions();
+        Gizmos.color = colorOpenExit;
+        for (int i = 0; i < open.Count; i++)
+        {
+            var p = open[i]; p.y = exitGizmoY;
+            Gizmos.DrawWireSphere(p, exitSphereRadius);
+#if UNITY_EDITOR
+            if (drawExitLabels)
+                UnityEditor.Handles.Label(p + Vector3.up * (exitSphereRadius * 1.4f), $"EXIT {i}", new GUIStyle(UnityEditor.EditorStyles.boldLabel) { fontSize = 11 });
+#endif
+        }
+
+        // Exits usados o cerrados (naranja)
+        Gizmos.color = colorUsedOrClosedExit;
+        for (int i = 0; i < _exitsCount; i++)
+        {
+            var ex = _exitsArray[i];
+            if (!ex.Used && !ex.Closed) continue;
+            var p = ExitToWorld(ex); p.y = exitGizmoY;
+            Gizmos.DrawSphere(p, exitSphereRadius * 0.85f);
+#if UNITY_EDITOR
+            if (drawExitLabels)
+                UnityEditor.Handles.Label(p + Vector3.up * (exitSphereRadius * 1.1f), ex.Closed ? "CERRADO" : "USADO", new GUIStyle(UnityEditor.EditorStyles.miniBoldLabel));
+#endif
+        }
+
+        // Últimos usados (amarillo)
+        Gizmos.color = colorLastUsed;
+        foreach (var u in _lastUsedSpawns)
+        {
+            var p = new Vector3(u.x, exitGizmoY, u.z);
+            Gizmos.DrawSphere(p, exitSphereRadius * 0.7f);
+#if UNITY_EDITOR
+            if (drawExitLabels)
+                UnityEditor.Handles.Label(p + Vector3.up * (exitSphereRadius * 0.9f), "used", new GUIStyle(UnityEditor.EditorStyles.miniBoldLabel));
+#endif
+        }
+    }
+
 
     // Verificar si una celda es válida para spawn
     private bool IsValidSpawnPoint(PlacedTile tile, Vector2Int cell)
     {
-        // 1. Debe ser una celda de path
         if (!tile.layout.IsInside(cell) || !tile.layout.IsPath(cell))
             return false;
 
-        // 2. Debe ser un final de camino (solo 1 vecino path)
         return CountPathNeighbors(tile, cell) == 1;
     }
 
-    // Contar vecinos que son path
     private int CountPathNeighbors(PlacedTile tile, Vector2Int cell)
     {
         int pathNeighbors = 0;
@@ -1120,14 +1279,12 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         return pathNeighbors;
     }
 
-    // Calcular posición mundial
     private Vector3 CalculateWorldPosition(PlacedTile tile, Vector2Int cell)
     {
         return tile.worldOrigin +
             TileOrientationCalculator.CellToWorldLocal(cell, tile.layout, tile.rotSteps, tile.flipped);
     }
 
-    // Verificar duplicados
     private bool IsDuplicateSpawnPoint(Vector3 newPoint, List<Vector3> existingPoints, float threshold = 0.1f)
     {
         foreach (var point in existingPoints)
@@ -1138,7 +1295,6 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         return false;
     }
 
-    // Fallback: spawn points de emergencia
     private List<Vector3> GetFallbackSpawnPoints()
     {
         var fallbackPoints = new List<Vector3>();
@@ -1155,7 +1311,6 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
                 }
             }
 
-            // Si aún no hay puntos, usar una esquina del último tile
             if (fallbackPoints.Count == 0)
             {
                 Vector3 cornerPos = lastTile.worldOrigin + new Vector3(lastTile.layout.cellSize, 0, lastTile.layout.cellSize);
@@ -1167,7 +1322,6 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         return fallbackPoints;
     }
 
-    // Método para debugging visual
     public void DebugSpawnPoints()
     {
         var spawnPoints = GetSpawnPoints();
@@ -1180,4 +1334,236 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         }
     }
     #endregion
+    // Devuelve la posición del Core si existe
+    private bool TryGetCoreTransform(out Transform coreT)
+    {
+        coreT = null;
+        if (spawnedCore != null) { coreT = spawnedCore.transform; return true; }
+        var coreGo = GameObject.FindGameObjectWithTag("Core");
+        if (coreGo) { coreT = coreGo.transform; return true; }
+        return false;
+    }
+
+    // Spawnea UN runner en un punto de inicio específico
+   /* private void SpawnExitRunnerAt(Vector3 startWorldPos)
+    {
+        if (exitRunnerPrefab == null)
+        {
+            Debug.LogWarning("[GridGenerator] exitRunnerPrefab no asignado.");
+            return;
+        }
+        if (!TryGetCoreTransform(out var coreT))
+        {
+            Debug.LogWarning("[GridGenerator] No hay Core en escena para dirigir el runner.");
+            return;
+        }
+
+        // Ajuste de altura para que no quede "pegado" al piso
+        var spawnPos = new Vector3(startWorldPos.x, startWorldPos.y + exitRunnerHeightOffset, startWorldPos.z);
+        var go = Instantiate(exitRunnerPrefab, spawnPos, Quaternion.identity, tilesRoot);
+        go.name = "ExitRunner";
+
+        var runner = go.GetComponent<Enemy>();
+        if (!runner) runner = go.AddComponent<Enemy>();
+
+        runner.Init(coreT, exitRunnerSpeed);
+    }
+    private void SpawnRunnerAtExit(Vector3 startWorldPos)
+    {
+        if (exitRunnerPrefab == null)
+        {
+            Debug.LogWarning("[GridGenerator] exitRunnerPrefab no asignado.");
+            return;
+        }
+
+        // Core: primero el instanciado, si no, por tag
+        Transform coreT = null;
+        if (spawnedCore != null) coreT = spawnedCore.transform;
+        else
+        {
+            var coreGo = GameObject.FindGameObjectWithTag("Core");
+            if (coreGo) coreT = coreGo.transform;
+        }
+        if (coreT == null)
+        {
+            Debug.LogWarning("[GridGenerator] No hay Core en escena, el Runner no tendrá destino.");
+            // igual lo instanciamos; ExitRunner se autoconfigurará si aparece un Core luego
+        }
+
+        Vector3 spawnPos = startWorldPos + Vector3.up * exitRunnerHeightOffset;
+        var go = Instantiate(exitRunnerPrefab, spawnPos, Quaternion.identity);
+        go.name = "ExitRunner";
+
+        var runner = go.GetComponent<ExitRunner>();
+        if (runner == null) runner = go.AddComponent<ExitRunner>();
+        runner.Init(coreT, Mathf.Max(0.01f, exitRunnerSpeed));
+    }*/
+
+    // Spawnea runners en TODOS los exits abiertos actuales
+    public void SpawnRunnersAtAllOpenExits()
+    {
+        var exits = GetAvailableExits(); // (label, worldPos) SOLO los no usados/ni cerrados
+        if (exits.Count == 0)
+        {
+            Debug.Log("[GridGenerator] No hay exits abiertos para spawnear runners.");
+            return;
+        }
+
+        foreach (var (_, worldPos) in exits)
+            SpawnRunnerFollowingPath(worldPos);
+    }
+    // Suponemos un cellSize único en layouts (si los tuyos varían, avisame y lo adapto)
+    private float GlobalCellSize => (_chainCount > 0 && _chainArray[0].layout) ? _chainArray[0].layout.cellSize : 1f;
+
+    private Vector3 SnapToCell(Vector3 w)
+    {
+        float cs = Mathf.Max(0.0001f, GlobalCellSize);
+        float x = Mathf.Round(w.x / cs) * cs;
+        float z = Mathf.Round(w.z / cs) * cs;
+        return new Vector3(x, spawnedCore ? spawnedCore.transform.position.y : w.y, z);
+    }
+
+    private Vector3Int WorldToKey(Vector3 w)
+    {
+        float cs = Mathf.Max(0.0001f, GlobalCellSize);
+        return new Vector3Int(Mathf.RoundToInt(w.x / cs), 0, Mathf.RoundToInt(w.z / cs));
+    }
+
+    private Vector3 KeyToWorld(Vector3Int k)
+    {
+        float cs = Mathf.Max(0.0001f, GlobalCellSize);
+        return new Vector3(k.x * cs, spawnedCore ? spawnedCore.transform.position.y : 0f, k.z * cs);
+    }
+    // Devuelve set de nodos (keys) y adyacencia 4-dir
+    private void BuildPathGraph(out HashSet<Vector3Int> nodes, out Dictionary<Vector3Int, List<Vector3Int>> adj)
+    {
+        nodes = new HashSet<Vector3Int>();
+        adj = new Dictionary<Vector3Int, List<Vector3Int>>();
+
+        float cs = GlobalCellSize;
+
+        // 1) registrar cada celda Path como nodo
+        for (int i = 0; i < _chainCount; i++)
+        {
+            var pt = _chainArray[i];
+            if (pt.layout == null) continue;
+
+            foreach (var t in pt.layout.tiles)
+            {
+                if (t.type != TileLayout.TileType.Path) continue;
+
+                // celda orientada -> world center
+                var w = pt.worldOrigin + TileOrientationCalculator.CellToWorldLocal(
+                    t.grid, pt.layout, pt.rotSteps, pt.flipped);
+
+                var k = WorldToKey(w);
+                if (nodes.Add(k))
+                    adj[k] = new List<Vector3Int>();
+            }
+        }
+
+        // 2) conectar vecinos ortogonales
+        var dirs = new Vector3Int[]
+        {
+        new Vector3Int( 1,0, 0), new Vector3Int(-1,0, 0),
+        new Vector3Int( 0,0, 1), new Vector3Int( 0,0,-1),
+        };
+
+        foreach (var k in nodes)
+        {
+            foreach (var d in dirs)
+            {
+                var nb = new Vector3Int(k.x + d.x, 0, k.z + d.z);
+                if (nodes.Contains(nb))
+                    adj[k].Add(nb);
+            }
+        }
+    }
+    private bool TryBuildRouteExitToCore(Vector3 exitWorld, out List<Vector3> route)
+    {
+        route = null;
+        if (spawnedCore == null) return false;
+
+        BuildPathGraph(out var nodes, out var adj);
+
+        var startKey = WorldToKey(SnapToCell(exitWorld));
+        var goalKey = WorldToKey(SnapToCell(spawnedCore.transform.position));
+
+        if (!nodes.Contains(startKey) || !nodes.Contains(goalKey))
+        {
+            // Si el EXIT o el CORE no caen exactamente en nodos, intentá “snapear” a vecinos inmediatos
+            // (simple: si no está, abortamos y que vaya en línea recta como fallback)
+            return false;
+        }
+
+        // BFS
+        var q = new Queue<Vector3Int>();
+        var prev = new Dictionary<Vector3Int, Vector3Int>();
+        var visited = new HashSet<Vector3Int>();
+
+        q.Enqueue(startKey);
+        visited.Add(startKey);
+
+        bool found = false;
+        while (q.Count > 0)
+        {
+            var u = q.Dequeue();
+            if (u == goalKey) { found = true; break; }
+
+            foreach (var v in adj[u])
+            {
+                if (visited.Contains(v)) continue;
+                visited.Add(v);
+                prev[v] = u;
+                q.Enqueue(v);
+            }
+        }
+
+        if (!found) return false;
+
+        // reconstruir path
+        var keys = new List<Vector3Int>();
+        for (var cur = goalKey; ;)
+        {
+            keys.Add(cur);
+            if (cur == startKey) break;
+            cur = prev[cur];
+        }
+        keys.Reverse();
+
+        // A world + pequeño offset Y para que “flote” un toque
+        route = new List<Vector3>(keys.Count);
+        foreach (var k in keys)
+        {
+            var w = KeyToWorld(k);
+            w.y += runnerYOffset;
+            route.Add(w);
+        }
+        return route.Count > 0;
+    }
+    private void SpawnRunnerFollowingPath(Vector3 exitWorldPos)
+    {
+        if (exitRunnerPrefab == null)
+        {
+            Debug.LogWarning("[GridGenerator] exitRunnerPrefab no asignado.");
+            return;
+        }
+
+        if (!TryBuildRouteExitToCore(exitWorldPos, out var path))
+        {
+            // Fallback: si no se pudo armar ruta, usá el primer y último punto para que no quede clavado
+            path = new List<Vector3> { exitWorldPos + Vector3.up * runnerYOffset };
+            if (spawnedCore) path.Add(new Vector3(spawnedCore.transform.position.x,
+                                                  (spawnedCore.transform.position.y + runnerYOffset),
+                                                  spawnedCore.transform.position.z));
+        }
+
+        var go = Instantiate(exitRunnerPrefab, path[0], Quaternion.identity);
+        go.name = "Enemy";
+
+        var mover = go.GetComponent<Enemy>();
+        if (mover == null) mover = go.AddComponent<Enemy>();
+        mover.Init(path, runnerSpeed);
+    }
+
 }

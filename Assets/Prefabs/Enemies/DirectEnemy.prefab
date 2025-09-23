@@ -508,6 +508,8 @@ GameObject:
   - component: {fileID: 3073536757813414801}
   - component: {fileID: -9169273545925696668}
   - component: {fileID: -7838137968518445310}
+  - component: {fileID: 8413191888970248871}
+  - component: {fileID: 8820110197504237048}
   m_Layer: 0
   m_Name: DirectEnemy
   m_TagString: Enemy
@@ -644,13 +646,36 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 231b860c4f77bf64f9280358fd06cfc6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 5
-  currentHealth: 0
   speed: 3
-  defense: 0
-  rotationSpeed: 10
   arrivalThreshold: 0.1
-  smoothRotation: 1
+  waypointTolerance: 0.03
+  faceDirection: 1
+--- !u!114 &8413191888970248871
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5019013483156572802}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 41dcbc76d459d1c429bc9fd6326fcc27, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &8820110197504237048
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5019013483156572802}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9a7e20c33923da94a89ca60ef0e4a491, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  healthBarPrefab: {fileID: 4226652873309903254, guid: e992eef13a5dec64495e55e9ee746145, type: 3}
+  healthBarHeight: 1.5
 --- !u!1 &5177878861524608455
 GameObject:
   m_ObjectHideFlags: 0

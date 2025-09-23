@@ -1,63 +1,70 @@
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
+[DisallowMultipleComponent]
 public class Enemy : MonoBehaviour
 {
-    private Vector3[] pathPositions;
-    private int currentPathIndex = 0;
 
     [Header("Settings")]
     public float speed = 2f;
     public float arrivalThreshold = 0.3f;
+    [SerializeField] private float waypointTolerance = 0.03f;
+    [SerializeField] private bool faceDirection = true;
 
-    public void Initialize(Vector3 spawnPosition, Transform coreTransform, SpawnManager manager)
+    private readonly List<Vector3> _route = new List<Vector3>();
+    private int _idx;
+
+    public EnemyHealth Health { get; private set; }
+    public EnemyHealthBar HealthBar { get; private set; }
+
+    private void Awake()
     {
-        currentPathIndex = 0;
+        Health = GetComponent<EnemyHealth>();
+        HealthBar = GetComponent<EnemyHealthBar>();
+    }
 
-        // Usar Dijkstra REAL
-        DijkstraPathfinder pathfinder = FindObjectOfType<DijkstraPathfinder>();
-        if (pathfinder != null)
-        {
-            pathPositions = pathfinder.FindPath(spawnPosition, coreTransform.position);
-            Debug.Log("Dijkstra retorno camino de " + (pathPositions?.Length ?? 0) + " puntos");
-        }
-        else
-        {
-            Debug.LogError("DijkstraPathfinder no encontrado");
-            pathPositions = new Vector3[] { spawnPosition, coreTransform.position };
-        }
+    public void Init(IList<Vector3> worldRoute, float moveSpeed)
+    {
+        speed = Mathf.Max(0.01f, moveSpeed);
+        _route.Clear();
+        if (worldRoute != null) _route.AddRange(worldRoute);
+        _idx = 0;
+        if (_route.Count > 0) transform.position = _route[0];
+    }
+    private void Update()
+    {
+        if (_route.Count == 0 || _idx >= _route.Count) return;
 
-        transform.position = spawnPosition;
+        var current = transform.position;
+        var target = _route[_idx];
+        var to = target - current;
 
-        // Debug del camino
-        if (pathPositions != null)
+        if (to.sqrMagnitude <= waypointTolerance * waypointTolerance)
         {
-            for (int i = 0; i < pathPositions.Length; i++)
+            _idx++;
+            if (_idx >= _route.Count)
             {
-                Debug.Log($"Camino[{i}]: {pathPositions[i]}");
+                OnArrived();
+                return;
             }
+            target = _route[_idx];
+            to = target - current;
         }
-    }
 
-    void Update()
-    {
-        if (pathPositions == null || currentPathIndex >= pathPositions.Length) return;
+        var dir = to.normalized;
+        transform.position = Vector3.MoveTowards(current, target, speed * Time.deltaTime);
 
-        MoveToNextPoint();
-    }
-
-    void MoveToNextPoint()
-    {
-        Vector3 target = pathPositions[currentPathIndex];
-
-        // Rotar y mover
-        transform.rotation = Quaternion.LookRotation((target - transform.position).normalized);
-        transform.position = Vector3.MoveTowards(transform.position, target, speed * Time.deltaTime);
-
-        if (Vector3.Distance(transform.position, target) <= arrivalThreshold)
+        if (faceDirection && dir.sqrMagnitude > 0.0001f)
         {
-            currentPathIndex++;
+            var look = Quaternion.LookRotation(new Vector3(dir.x, 0f, dir.z), Vector3.up);
+            transform.rotation = Quaternion.Slerp(transform.rotation, look, 0.25f);
         }
     }
 
-    // ... resto de métodos (TakeDamage, Die, etc) ...
+    private void OnArrived()
+    {
+        // TODO: VFX, daño al Core, etc.
+        Destroy(gameObject);
+    }
 }

@@ -869,7 +869,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &779849348
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1005,7 +1005,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 872382743}
-  - component: {fileID: 872382744}
   m_Layer: 0
   m_Name: SpawnManager
   m_TagString: Untagged
@@ -1028,27 +1027,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2091230205}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &872382744
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 872382742}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 243938e222b79734babb5efe3f8e05a5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  enemyPrefabs:
-  - {fileID: 5019013483156572802, guid: e2686766e99fe794da66a7d840a2b3b0, type: 3}
-  spawnInterval: 3
-  maxEnemies: 20
-  enableWaves: 1
-  timeBetweenWaves: 30
-  baseEnemiesPerWave: 5
-  enemiesPerWaveIncrement: 2
-  showDebugInfo: 1
 --- !u!1 &901305807
 GameObject:
   m_ObjectHideFlags: 0
@@ -1453,12 +1431,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 985941587}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 1.3630688, y: 0.8207942, z: 1.3582768}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 2091230205}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &985941589
 MonoBehaviour:
@@ -1469,9 +1447,23 @@ MonoBehaviour:
   m_GameObject: {fileID: 985941587}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f49ade3e31c55b24980588b807c4d7fb, type: 3}
+  m_Script: {fileID: 11500000, guid: 8572c813511316e4cb3a7e85daf13e79, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  cellSize: 1
+  worldOrigin: {x: 0, y: 0, z: 0}
+  gizmoY: 0.03
+  gridSize: {x: 0, y: 0}
+  onlyBorderExits: 0
+  coreCell: {x: -2147483648, y: -2147483648}
+  lastUsedCapacity: 6
+  drawGizmos: 1
+  drawLabels: 1
+  sphereRadius: 0.12
+  exitColor: {r: 0, g: 1, b: 0, a: 1}
+  recentlyUsedColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  coreColor: {r: 0, g: 0.9, b: 0.9, a: 1}
+  gridBoundsColor: {r: 1, g: 1, b: 1, a: 0.25}
 --- !u!1 &990097452
 GameObject:
   m_ObjectHideFlags: 0
@@ -2857,7 +2849,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1717535527}
   - component: {fileID: 1717535528}
-  - component: {fileID: 1717535529}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -2896,21 +2887,6 @@ MonoBehaviour:
   waveText: {fileID: 0}
   enemiesText: {fileID: 0}
   gameOverPanel: {fileID: 0}
---- !u!114 &1717535529
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1717535526}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 96e42562d9a9d994aaeb786d7b3fffe5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  spawnKey: 102
-  infoKey: 105
-  showGizmos: 1
 --- !u!1 &1775124815
 GameObject:
   m_ObjectHideFlags: 0
@@ -2929,7 +2905,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1775124816
 RectTransform:
   m_ObjectHideFlags: 0
@@ -3175,7 +3151,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1944914744}
   - component: {fileID: 1944914743}
-  - component: {fileID: 1944914745}
   - component: {fileID: 1944914748}
   - component: {fileID: 1944914747}
   - component: {fileID: 1944914746}
@@ -3225,6 +3200,24 @@ MonoBehaviour:
   allowRotations: 1
   allowFlip: 1
   selectedExitIndex: 0
+  minDistanceToCore: 0
+  excludeCoreNeighbors: 1
+  drawExitGizmos: 1
+  drawExitLabels: 1
+  exitGizmoY: 0.05
+  exitSphereRadius: 0.18
+  colorOpenExit: {r: 0.1, g: 0.85, b: 0.2, a: 1}
+  colorUsedOrClosedExit: {r: 1, g: 0.5, b: 0.1, a: 1}
+  colorLastUsed: {r: 1, g: 1, b: 0.2, a: 1}
+  colorCore: {r: 0, g: 0.9, b: 0.9, a: 1}
+  lastUsedCapacity: 6
+  exitRunnerPrefab: {fileID: 5019013483156572802, guid: e2686766e99fe794da66a7d840a2b3b0, type: 3}
+  exitRunnerSpeed: 3.5
+  exitRunnerHeightOffset: 0.05
+  autoSpawnRunnersOnGenerate: 1
+  autoSpawnRunnersOnAppend: 1
+  runnerSpeed: 3.5
+  runnerYOffset: 0.05
 --- !u!4 &1944914744
 Transform:
   m_ObjectHideFlags: 0
@@ -3240,34 +3233,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2091230205}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1944914745
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1944914742}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a1ffaace34b04d548ab02f4b1843b91c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  gridGenerator: {fileID: 1944914743}
-  drawLastTileAABB: 1
-  drawUnusedExits: 1
-  drawPlacementPreviews: 1
-  drawExitArrow: 1
-  showPreviewLabelsOnlyForValid: 1
-  aabbWire: {r: 1, g: 1, b: 1, a: 0.35}
-  exitColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  okFill: {r: 0, g: 1, b: 0, a: 0.18}
-  overlapFill: {r: 1, g: 0, b: 0, a: 0.18}
-  edgeFill: {r: 1, g: 0.6, b: 0, a: 0.18}
-  previewWire: {r: 0, g: 0, b: 0, a: 0.38}
-  yLift: 0.02
-  sphereRadius: 0.2
-  labelHeight: 0.25
-  arrowSize: 0.8
 --- !u!114 &1944914746
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3342,7 +3307,6 @@ Transform:
   - {fileID: 872382743}
   - {fileID: 1717535527}
   - {fileID: 1944914744}
-  - {fileID: 985941588}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2093477787
@@ -3596,3 +3560,4 @@ SceneRoots:
   - {fileID: 981907313}
   - {fileID: 1092635640}
   - {fileID: 2091230205}
+  - {fileID: 985941588}

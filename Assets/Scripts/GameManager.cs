@@ -12,7 +12,6 @@ public class GameManager : MonoBehaviour
     public GameObject gameOverPanel;
 
     private Core core;
-    private SpawnManager spawnManager;
     private bool gameOver = false;
 
     void Awake()
@@ -30,16 +29,7 @@ public class GameManager : MonoBehaviour
     void Start()
     {
         // Buscar componentes de forma segura
-        core = FindObjectOfType<Core>();
-        spawnManager = FindObjectOfType<SpawnManager>();
-
-        if (spawnManager == null)
-        {
-            Debug.LogError("GameManager: No se encontró SpawnManager en la escena");
-            // Crear uno automáticamente si quieres
-            GameObject spawnObj = new GameObject("SpawnManager");
-            spawnManager = spawnObj.AddComponent<SpawnManager>();
-        }
+        core = FindFirstObjectByType<Core>();
 
         // Suscribirse a eventos del Core
         if (core != null)
@@ -72,8 +62,6 @@ public class GameManager : MonoBehaviour
     {
         if (enemiesText == null) return; // Salir si es null
 
-        int enemyCount = spawnManager != null ? spawnManager.GetActiveEnemiesCount() : 0;
-        enemiesText.text = $"Enemigos: {enemyCount}";
     }
 
     void OnCoreHealthChanged(int currentHealth)
@@ -99,15 +87,7 @@ public class GameManager : MonoBehaviour
 
     public void UpdateWaveInfo()
     {
-        // VERIFICACIÓN DE NULL
-        if (waveText != null && spawnManager != null)
-        {
-            waveText.text = $"Oleada: {spawnManager.GetCurrentWave()}";
-        }
-        else if (waveText != null)
-        {
-            waveText.text = "Oleada: 0";
-        }
+
     }
 
     void OnDestroy()
