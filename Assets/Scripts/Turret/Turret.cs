@@ -11,6 +11,8 @@ public class Turret : MonoBehaviour
     private ITargetingBehavior targeting;
     private IRangeDisplay rangeDisplay;
 
+    [Header("Range Display")]
+    [SerializeField] private bool showRangeOnStart = true;
     void Awake()
     {
         stats = GetComponent<TurretStats>();
@@ -38,18 +40,12 @@ public class Turret : MonoBehaviour
 
     private void Start()
     {
-        HideRange();
+        if (showRangeOnStart) ShowRange();
+        else HideRange();
     }
 
-    public void ShowRange()
-    {
-        rangeDisplay?.Show(stats.Range);
-    }
-
-    public void HideRange()
-    {
-        rangeDisplay?.Hide();
-    }
+    public void ShowRange() => rangeDisplay?.Show(stats.Range);
+    public void HideRange() => rangeDisplay?.Hide();
 
     // Si no hay tipo, asumimos que requiere combate (conservador)
     private static bool RequiresCombatBehaviors(string type)

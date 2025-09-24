@@ -1,10 +1,11 @@
 ﻿using UnityEngine;
 using UnityEngine.EventSystems;
+using static ShiftingWorldMechanic;
 
 public class TurretPlacer : MonoBehaviour
 {
     [Header("Refs")]
-    [SerializeField] private ShiftingWorldUI ui;      // arrastra tu ShiftingWorldUI
+    [SerializeField] private ShiftingWorldUI ui;      // arrastrá tu ShiftingWorldUI
     [SerializeField] private Camera cam;              // si es null usa Camera.main
 
     [Header("Preview (opcional)")]
@@ -21,10 +22,13 @@ public class TurretPlacer : MonoBehaviour
     [SerializeField] private bool removeWithMiddleClick = true;
 
     private bool _removing;
+
     private void Awake()
     {
+        // Nos suscribimos a la elección de torreta desde la UI (delegado)
         if (ui != null) ui.OnTurretChosen += HandleTurretChosen;
     }
+
     private void OnDestroy()
     {
         if (ui != null) ui.OnTurretChosen -= HandleTurretChosen;
@@ -55,15 +59,14 @@ public class TurretPlacer : MonoBehaviour
 
     private void Update()
     {
-        if (removeWithMiddleClick && Input.GetMouseButtonDown(2)   // clic medio
-            || (Input.GetKey(KeyCode.LeftShift) && Input.GetMouseButtonDown(0))) // Shift+Click
+        // Modo remover (clic medio o Shift+Click izq)
+        if ((removeWithMiddleClick && Input.GetMouseButtonDown(2)) ||
+            (Input.GetKey(KeyCode.LeftShift) && Input.GetMouseButtonDown(0)))
         {
             var camRemove = cam ? cam : Camera.main;
             if (!camRemove) return;
 
-            // Evitá borrar si el puntero está sobre la UI
-            if (UnityEngine.EventSystems.EventSystem.current &&
-                UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+            if (EventSystem.current && EventSystem.current.IsPointerOverGameObject())
                 return;
 
             Ray rayRemove = camRemove.ScreenPointToRay(Input.mousePosition);
@@ -77,16 +80,16 @@ public class TurretPlacer : MonoBehaviour
                 }
             }
 
-            // Si estabas viendo el ghost de colocar, ocultalo
             if (_ghost) _ghost.SetActive(false);
-            return; // importante: no sigas con la lógica de colocar este frame
+            return;
         }
+
         if (!_placing) return;
 
         var cameraToUse = cam ? cam : Camera.main;
         if (!cameraToUse) return;
 
-        // Cancelar
+        // Cancelar colocación
         if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
         {
             ExitPlacementMode();
@@ -104,12 +107,11 @@ public class TurretPlacer : MonoBehaviour
         Ray ray = cameraToUse.ScreenPointToRay(Input.mousePosition);
         if (Physics.Raycast(ray, out var hit, 500f, cellLayers))
         {
-            // Buscar slot en el objeto golpeado o sus padres
             var slot = hit.collider.GetComponentInParent<CellSlot>();
 
             if (slot != null && slot.enabled && !slot.IsOccupied)
             {
-                // Mostrar y posicionar ghost EXACTAMENTE en donde se va a colocar
+                // Mostrar y posicionar ghost
                 if (_ghost)
                 {
                     _ghost.SetActive(true);
@@ -125,32 +127,54 @@ public class TurretPlacer : MonoBehaviour
                     var prefab = _selectedTurret ? _selectedTurret.prefab : null;
                     if (!prefab) return;
 
-                    if (slot.TryPlace(prefab)) // tu TryPlace ya coloca en topCenter
+                    bool placed = false;
+
+                    // Preferí la sobrecarga con data si existe
+                    try
+                    {
+                        placed = slot.TryPlace(prefab, _selectedTurret);
+                    }
+                    catch
+                    {
+                        // Fallback a la versión sin data
+                        placed = slot.TryPlace(prefab);
+                    }
+
+                    if (placed)
                     {
                         Debug.Log($"[TurretPlacer] Torreta colocada en {slot.name}");
+
+                        // Avisar al sistema de oleadas (si corresponde en tu proyecto)
+                        PlacementEvents.RaiseTurretPlaced(new PlacementEvents.TurretPlacedInfo
+                        {
+                            turretInstance = prefab,
+                            worldPosition = slot.transform.position,
+                            turretId = _selectedTurret ? _selectedTurret.name : ""
+                        });
+
+                        // AVISAR A LA UI (cierra SOLO su panel y notifica al Mechanic internamente)
+                        if (ui != null)
+                            ui.NotifyTurretPlaced(World.Otro);
+
                         ExitPlacementMode();
-                    }
-                    else
-                    {
-                        Debug.Log("Esa celda ya está ocupada.");
                     }
                 }
             }
             else
             {
-                // No es celda válida u ocupada: ocultar ghost
                 if (_ghost) _ghost.SetActive(false);
             }
         }
         else
         {
-            // Nada bajo el mouse: ocultar ghost
             if (_ghost) _ghost.SetActive(false);
         }
     }
+
+    // API opcional para un modo remover explícito por UI
     public void EnterRemoveMode()
     {
-        _placing = false; // por si acaso
+        _placing = false;
         _removing = true;
         if (_ghost) _ghost.SetActive(false);
     }
@@ -159,5 +183,4 @@ public class TurretPlacer : MonoBehaviour
     {
         _removing = false;
     }
-
 }

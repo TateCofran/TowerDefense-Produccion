@@ -1563,7 +1563,7 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
 
         var mover = go.GetComponent<Enemy>();
         if (mover == null) mover = go.AddComponent<Enemy>();
-        mover.Init(path, runnerSpeed);
+        mover.Init(path);
     }
 
 }

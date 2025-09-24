@@ -510,6 +510,7 @@ GameObject:
   - component: {fileID: -7838137968518445310}
   - component: {fileID: 8413191888970248871}
   - component: {fileID: 8820110197504237048}
+  - component: {fileID: -2998138191193648476}
   m_Layer: 0
   m_Name: DirectEnemy
   m_TagString: Enemy
@@ -646,8 +647,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 231b860c4f77bf64f9280358fd06cfc6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speed: 3
-  arrivalThreshold: 0.1
+  data: {fileID: 11400000, guid: b9e15f4d261a13e4b84b65c5288ba09a, type: 2}
   waypointTolerance: 0.03
   faceDirection: 1
 --- !u!114 &8413191888970248871
@@ -676,6 +676,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   healthBarPrefab: {fileID: 4226652873309903254, guid: e992eef13a5dec64495e55e9ee746145, type: 3}
   healthBarHeight: 1.5
+--- !u!114 &-2998138191193648476
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5019013483156572802}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ae90fa654077f9a4daf5e749cf0973e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &5177878861524608455
 GameObject:
   m_ObjectHideFlags: 0
