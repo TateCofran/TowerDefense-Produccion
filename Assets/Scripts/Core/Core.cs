@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class Core : MonoBehaviour
 {
@@ -24,6 +25,8 @@ public class Core : MonoBehaviour
         {
             Debug.Log("Core destroyed!");
             // Lógica de game over
+            SceneManager.LoadScene("GameScene");
+
         }
     }
 }
