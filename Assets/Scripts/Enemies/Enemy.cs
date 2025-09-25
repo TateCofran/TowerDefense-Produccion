@@ -3,7 +3,7 @@ using System.Linq;
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public class Enemy : MonoBehaviour
+public class Enemy : MonoBehaviour, IEnemyDeathHandler // <- implementamos el handler
 {
     [SerializeField] private EnemyData data;
     public EnemyData Data => data;
@@ -14,8 +14,6 @@ public class Enemy : MonoBehaviour
     public static event System.Action<Enemy> OnAnyEnemyKilled;
 
     [Header("Settings")]
-    //public float speed = 2f;
-    //public float arrivalThreshold = 0.3f;
     [SerializeField] private float waypointTolerance = 0.03f;
     [SerializeField] private bool faceDirection = true;
 
@@ -25,6 +23,9 @@ public class Enemy : MonoBehaviour
     public EnemyHealth Health { get; private set; }
     public EnemyHealthBar HealthBar { get; private set; }
 
+    // Evita notificar muerte más de una vez (pooling / Destroy / llegada al core)
+    private bool _removedFromWave; // renombrado para contemplar ambas causas
+
     private void Awake()
     {
         Health = GetComponent<EnemyHealth>();
@@ -33,21 +34,22 @@ public class Enemy : MonoBehaviour
         if (data == null)
             Debug.LogError($"[Enemy] {name} no tiene asignado EnemyData");
     }
-
     public void Init(IList<Vector3> worldRoute)
     {
-        //data.moveSpeed = Mathf.Max(0.01f, moveSpeed);
         _route.Clear();
         if (worldRoute != null) _route.AddRange(worldRoute);
         _idx = 0;
         if (_route.Count > 0) transform.position = _route[0];
 
-        // Inicializar vida primero (con valores reales)
+        _removedFromWave = false;
+        hasHitCore = false;
+
         if (Health != null && data != null)
             Health.Initialize(data.maxHealth, data.defense);
 
         HealthBar?.Initialize(transform, Health != null ? Health.GetMaxHealth() : 1f);
     }
+
 
     private void Update()
     {
@@ -78,34 +80,103 @@ public class Enemy : MonoBehaviour
             transform.rotation = Quaternion.Slerp(transform.rotation, look, 0.25f);
         }
     }
+    private void OnTriggerEnter(Collider other)
+    {
+        if (hasHitCore) return;
+
+        if (other.TryGetComponent<Core>(out var core))
+        {
+            hasHitCore = true;
+            core.TakeDamage(data.damageToCore);
+            ReturnToPoolOrDisable();
+        }
+    }
+
     private void OnEnable()
     {
         EnemyTracker.RegisterEnemy(this);
+        _removedFromWave = false;
+        hasHitCore = false;
     }
+
     private void OnDisable()
     {
         EnemyTracker.UnregisterEnemy(this);
     }
+
     private void OnArrived()
     {
-        // TODO: VFX, daño al Core, etc.
-        Destroy(gameObject);
+        if (_removedFromWave) return;
+        hasHitCore = true;
+
+        // TODO: aplicar daño al núcleo si corresponde:
+        // Core.Instance?.TakeDamage(data != null ? data.coreDamage : 1);
+
+        RemoveFromWaveOnce();   // notifica WaveManager una sola vez
+        ReturnToPoolOrDisable();// NO destruir
     }
 
     public void ResetEnemy()
     {
+        // Asegurar dependencias
+        var health = GetComponent<EnemyHealth>();
+        if (health == null) health = gameObject.AddComponent<EnemyHealth>();
+        var healthBar = GetComponent<EnemyHealthBar>();
+        if (healthBar == null) healthBar = gameObject.AddComponent<EnemyHealthBar>();
+
+        // Reset de stats
+        if (Data != null)
+        {
+            health.SetMaxHealth(Data.maxHealth);
+            health.SetDefense(Data.defense);
+            health.SetCurrentHealth(Data.maxHealth);
+        }
+        else
+        {
+            if (health.GetMaxHealth() <= 0f) health.SetMaxHealth(10f);
+            health.SetCurrentHealth(health.GetMaxHealth());
+        }
+
+        // Inicializar barra
+        healthBar.Initialize(this.transform, health.GetMaxHealth());
+        healthBar.UpdateHealthBar(health.GetCurrentHealth(), health.GetMaxHealth());
+
+        // Reset de flags/movimiento
         hasHitCore = false;
-        Health?.Initialize(data.maxHealth, data.defense);
+        _removedFromWave = false;
+        _idx = 0;
+    }
 
-        // Reiniciar la barra de vida al máximo
-        HealthBar?.Initialize(transform, Health.GetMaxHealth());
-        HealthBar?.UpdateHealthBar(Health.GetMaxHealth(), Health.GetMaxHealth());
-
-        // Cualquier otra lógica que tu enemigo requiera...
+    public void OnEnemyDeath(Enemy e)
+    {
+        // Por contrato del handler, 'e' debería ser this, pero lo defensivizamos
+        if (e != this) return;
+        NotifyDeath();
     }
 
     public void NotifyDeath()
     {
+        if (_removedFromWave) return;
+
         OnAnyEnemyKilled?.Invoke(this);
+        RemoveFromWaveOnce();
+        ReturnToPoolOrDisable(); // NO Destroy
     }
+
+    private void RemoveFromWaveOnce()
+    {
+        if (_removedFromWave) return;
+        _removedFromWave = true;
+        WaveManager.Instance?.NotifyEnemyKilled();
+    }
+
+    private void ReturnToPoolOrDisable()
+    {
+        // Devolver al pool si existe; si no, como mínimo desactivar para no romper refs
+        if (EnemyPool.Instance != null)
+            EnemyPool.Instance.ReturnEnemy(gameObject);
+        else
+            gameObject.SetActive(false);
+    }
+
 }

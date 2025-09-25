@@ -632,7 +632,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9a7e20c33923da94a89ca60ef0e4a491, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  healthBarPrefab: {fileID: 1719883738063928620, guid: 8ef29e64bbc51994884568598549cf2e, type: 3}
+  healthBarPrefab: {fileID: 4226652873309903254, guid: e992eef13a5dec64495e55e9ee746145, type: 3}
   healthBarHeight: 1.5
 --- !u!114 &-8332236753500028849
 MonoBehaviour:
@@ -646,6 +646,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 41dcbc76d459d1c429bc9fd6326fcc27, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  maxHealth: 0
+  defense: 0
+  currentHealth: 0
 --- !u!114 &-1633866569161232141
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -810,6 +813,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6462084647791823418}
+  - component: {fileID: 1460731492949589585}
   m_Layer: 0
   m_Name: Armature.001
   m_TagString: Untagged
@@ -833,6 +837,28 @@ Transform:
   - {fileID: 1592876658902558341}
   m_Father: {fileID: 1770581089749695008}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!95 &1460731492949589585
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6629284984810007721}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 557d15eae958e1c41878640c699ac550, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &6769018884046537063
 GameObject:
   m_ObjectHideFlags: 0

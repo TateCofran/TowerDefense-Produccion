@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2174219251741666325}
+  - component: {fileID: 5417927062065761412}
   m_Layer: 0
   m_Name: Armature
   m_TagString: Untagged
@@ -32,6 +33,28 @@ Transform:
   - {fileID: 3074246604271232323}
   m_Father: {fileID: 7105754084523342987}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!95 &5417927062065761412
+Animator:
+  serializedVersion: 7
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 338802075957192287}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 45e6d30ee63a792489de3b606e60a17f, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_AnimatePhysics: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &488779600567186859
 GameObject:
   m_ObjectHideFlags: 0
@@ -593,6 +616,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 41dcbc76d459d1c429bc9fd6326fcc27, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  maxHealth: 0
+  defense: 0
+  currentHealth: 0
 --- !u!114 &6389810080675335840
 MonoBehaviour:
   m_ObjectHideFlags: 0

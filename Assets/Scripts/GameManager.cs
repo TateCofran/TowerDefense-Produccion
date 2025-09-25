@@ -1,109 +1,80 @@
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.SceneManagement;
+
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
 
-    [Header("UI References")]
-    public Text healthText;
-    public Text waveText;
-    public Text enemiesText;
-    public GameObject gameOverPanel;
+    [SerializeField] private GameObject pausePanel;
+    private bool isPaused = false;
 
-    private Core core;
-    private bool gameOver = false;
+    public float timePlayed { get; private set; } // público para que lo use ResultScene
 
-    void Awake()
+    private void Update()
+    {
+        // No sumar tiempo si está pausado
+        if (!isPaused)
+        {
+            timePlayed += Time.deltaTime;
+
+        }
+        // Pausa y reanuda con ESC
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            if (isPaused)
+            {
+                ResumeGame();
+            }
+            else
+            {
+                PauseGame();
+            }
+        }
+    }
+    private void Awake()
     {
         if (Instance == null)
-        {
             Instance = this;
-        }
         else
-        {
             Destroy(gameObject);
-        }
     }
-
-    void Start()
+    public void PauseGame()
     {
-        // Buscar componentes de forma segura
-        core = FindFirstObjectByType<Core>();
+        if (isPaused) return;
+        isPaused = true;
+        Time.timeScale = 0f;
+        if (pausePanel != null)
+            pausePanel.SetActive(true);
+        AudioListener.pause = true;
+    }
+    public void ResumeGame()
+    {
+        if (!isPaused) return;
+        isPaused = false;
+        Time.timeScale = 1f;
 
-        // Suscribirse a eventos del Core
-        if (core != null)
+        if (pausePanel != null)
         {
-            core.OnHealthChanged += OnCoreHealthChanged;
-            core.OnCoreDestroyed += OnCoreDestroyed;
-            OnCoreHealthChanged(core.currentHealth);
+            pausePanel.SetActive(false);
         }
-        else
-        {
-            Debug.LogWarning("GameManager: No se encontró Core en la escena");
-        }
+        AudioListener.pause = false;
+    }
+    public void GameOver()
+    {
+        //int wave = WaveManager.Instance != null ? WaveManager.Instance.GetCurrentWave() : 0;
 
-        // Inicializar UI
-        if (gameOverPanel != null)
-            gameOverPanel.SetActive(false);
-
-        UpdateWaveInfo();
-        UpdateEnemiesText();
+        SceneManager.LoadScene("ResultScene");
+    }
+    //Eliminar Funcion de ResultSceneController más adelante
+    public void OnMainMenuButton()
+    {
+        SceneManager.LoadScene("MainMenu");
     }
 
-    void Update()
+    //Eliminar Funcion de ResultSceneController más adelante
+    public void OnPlayAgainButton()
     {
-        // Actualizar info de enemigos de forma segura
-        UpdateEnemiesText();
-    }
-
-    // Opción A: Hacerlo opcional
-    void UpdateEnemiesText()
-    {
-        if (enemiesText == null) return; // Salir si es null
-
-    }
-
-    void OnCoreHealthChanged(int currentHealth)
-    {
-        if (healthText != null && core != null)
-        {
-            healthText.text = $"Core: {currentHealth}/{core.maxHealth}";
-        }
-    }
-
-    void OnCoreDestroyed()
-    {
-        if (gameOver) return;
-
-        gameOver = true;
-        Debug.Log("Game Over activado");
-
-        if (gameOverPanel != null)
-        {
-            gameOverPanel.SetActive(true);
-        }
-    }
-
-    public void UpdateWaveInfo()
-    {
-
-    }
-
-    void OnDestroy()
-    {
-        // Desuscribirse de eventos de forma segura
-        if (core != null)
-        {
-            core.OnHealthChanged -= OnCoreHealthChanged;
-            core.OnCoreDestroyed -= OnCoreDestroyed;
-        }
-    }
-
-    // Método para botón de reinicio
-    public void RestartGame()
-    {
-        UnityEngine.SceneManagement.SceneManager.LoadScene(
-            UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+        SceneManager.LoadScene("GameScene");
     }
 }

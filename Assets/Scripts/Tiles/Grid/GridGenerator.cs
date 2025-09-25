@@ -102,7 +102,7 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
 
     [Header("Exit Runners (Path)")]
 
-    [SerializeField] private float runnerSpeed = 3.5f;
+    //[SerializeField] private float runnerSpeed = 3.5f;
     [SerializeField] private float runnerYOffset = 0.05f;
 
     private bool IsCoreNeighborWorld(Vector3 exitWorld)
@@ -261,8 +261,8 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         AddTileExitsToPool(_chainCount - 1, excludeAssetCell: null);
 
         Debug.Log($"[GridGenerator] Primer tile instanciado ({count} celdas). Exits disponibles: {GetAvailableExitLabels().Count}");
-        if (autoSpawnRunnersOnGenerate)
-            SpawnRunnersAtAllOpenExits();
+        //if (autoSpawnRunnersOnGenerate)
+           // SpawnRunnersAtAllOpenExits();
     }
 
     private void SpawnCoreAtEntry(TileLayout layout, Vector3 worldOrigin, int rotSteps, bool flip)
@@ -1565,5 +1565,11 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         if (mover == null) mover = go.AddComponent<Enemy>();
         mover.Init(path);
     }
+    public float GetRunnerYOffset() => runnerYOffset;
 
+    // Wrapper público a la ruta Exit->Core usando tu BFS interno
+    public bool TryGetRouteExitToCore(Vector3 exitWorldPos, out List<Vector3> route)
+    {
+        return TryBuildRouteExitToCore(exitWorldPos, out route);
+    }
 }

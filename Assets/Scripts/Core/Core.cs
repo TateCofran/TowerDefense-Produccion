@@ -2,45 +2,28 @@ using UnityEngine;
 
 public class Core : MonoBehaviour
 {
-    [Header("Core Settings")]
-    public int maxHealth = 100;
-    public int currentHealth;
-
-    public event System.Action<int> OnHealthChanged;
-    public event System.Action OnCoreDestroyed;
+    [SerializeField] private int maxHealth = 10;
+    private int currentHealth;
 
     private void Start()
     {
         currentHealth = maxHealth;
+        //Actualizamos la UI al inicio
+        UIController.Instance.UpdateCoreHealth(currentHealth, maxHealth);
     }
 
-    public void TakeDamage(int damage)
+    public void TakeDamage(int amount)
     {
-        currentHealth -= damage;
-        currentHealth = Mathf.Max(0, currentHealth);
+        currentHealth -= amount;
+        if (currentHealth < 0) currentHealth = 0;
 
-        OnHealthChanged?.Invoke(currentHealth);
+        // Actualizamos la UI cada vez que se daña el núcleo
+        UIController.Instance.UpdateCoreHealth(currentHealth, maxHealth);
 
         if (currentHealth <= 0)
         {
-            OnCoreDestroyed?.Invoke();
-            HandleCoreDestruction();
+            Debug.Log("Core destroyed!");
+            // Lógica de game over
         }
-    }
-
-    private void HandleCoreDestruction()
-    {
-        Debug.Log("Core destruido!");
-        // Aquí puedes agregar efectos de destrucción, game over, etc.
-
-        // Opcional: desactivar o destruir el objeto
-        gameObject.SetActive(false);
-    }
-
-    public void Heal(int amount)
-    {
-        currentHealth += amount;
-        currentHealth = Mathf.Min(currentHealth, maxHealth);
-        OnHealthChanged?.Invoke(currentHealth);
     }
 }
