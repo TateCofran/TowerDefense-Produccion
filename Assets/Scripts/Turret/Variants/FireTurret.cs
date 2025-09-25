@@ -68,7 +68,7 @@ public class FireTurret : MonoBehaviour, IShootingBehavior
 
             var projScript = projectile.GetComponent<Projectile>();
             if (projScript != null)
-                projScript.Initialize(target, 0); //daño lo maneja FireTurret
+                projScript.Initialize(target, 0); //daño lo maneja FireTurret sino tendria q hacer el calculo del primer tick aca y pasarle eso al initialize
 
             hasFiredProjectile = true;
         }

@@ -75,7 +75,9 @@ public class Projectile : MonoBehaviour
     {
         if (enemyGO == null || !enemyGO.activeInHierarchy) return;
 
-        var damageable = enemyGO.GetComponent<IDamageable>();
+        var damageable = enemyGO.GetComponentInChildren<IDamageable>();
+        Debug.Log("damageable: " + damageable);
+
         if (damageable != null && IsTargetAlive(damageable))
         {
             damageable.TakeDamage(damage);
@@ -108,3 +110,5 @@ public class Projectile : MonoBehaviour
         ProjectilePool.Instance.ReturnProjectile(gameObject);
     }
 }
+
+
