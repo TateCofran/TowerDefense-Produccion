@@ -142,7 +142,7 @@ GameObject:
   - component: {fileID: 6419352930851711508}
   - component: {fileID: 7890006244393666463}
   - component: {fileID: 2701875776965510181}
-  - component: {fileID: -1326548100484471257}
+  - component: {fileID: -7803579517740071822}
   m_Layer: 0
   m_Name: TurretFirePrefab
   m_TagString: Turret
@@ -442,7 +442,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: df5eee6f7f757fc4ba6e9542361f78bf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  lineRenderer: {fileID: 5778865115430028793, guid: e1603e964454cef4c9e80ce8d6250875, type: 3}
+  lineRenderer: {fileID: 5778865115430028793}
   segments: 60
 --- !u!114 &2701875776965510181
 MonoBehaviour:
@@ -457,7 +457,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   stats: {fileID: -4348509830824525796}
---- !u!114 &-1326548100484471257
+  showRangeOnStart: 1
+--- !u!114 &-7803579517740071822
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -466,7 +467,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 7333658948748976991}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 49e2302128e82f04687315beb5f3b13e, type: 3}
+  m_Script: {fileID: 11500000, guid: f18619527b2c3b843aee35fc06c930bb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  firePoint: {fileID: 5886391253151756493}
+  firePoint: {fileID: 3291181023223361483}
+  projectilePrefab: {fileID: 7687406600259247827, guid: 2bcb5021afa56824784d867b39255218, type: 3}
+  tickRate: 1
+  damageFractionPerSecond: 0.33

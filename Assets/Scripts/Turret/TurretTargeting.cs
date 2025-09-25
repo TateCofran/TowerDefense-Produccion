@@ -8,18 +8,35 @@ public class TurretTargeting : MonoBehaviour, ITargetingBehavior
 
     private ITurretStats stats;
     private TurretShooter shooter;
+    private FireTurret fireTurret;
 
     void Awake()
     {
         stats = GetComponent<ITurretStats>();
         shooter = GetComponent<TurretShooter>();
+        fireTurret = GetComponent<FireTurret>();
     }
 
     void Update()
     {
         float currentRange = stats.Range;
-        Transform target = GetTarget(transform.position, currentRange);
-        shooter.SetTarget(target);
+
+        //para elegir nuevo enemigo dentro del rango
+        Transform targetInRange = GetTarget(transform.position, currentRange);
+        //if (targetInRange != null) Debug.Log("targetInRange " + targetInRange);
+
+        if (targetInRange != null)
+        {
+            if (fireTurret != null)
+            {
+                fireTurret.MarkTarget(targetInRange);
+                shooter?.SetTarget(targetInRange);
+            }
+            else
+            {
+                shooter?.SetTarget(targetInRange);
+            }
+        }
     }
 
     public void NextMode()
@@ -29,13 +46,11 @@ public class TurretTargeting : MonoBehaviour, ITargetingBehavior
 
     public Transform GetTarget(Vector3 turretPosition, float range)
     {
-
         var enemiesInRange = EnemyTracker.Enemies
             .Where(enemy => enemy != null &&
                             enemy.gameObject.activeInHierarchy &&
                             enemy.Health != null &&
-                            !enemy.Health.IsDead()
-                            &&
+                            !enemy.Health.IsDead() &&
                             Vector3.Distance(turretPosition, enemy.transform.position) <= range)
             .ToList();
 
@@ -59,5 +74,4 @@ public class TurretTargeting : MonoBehaviour, ITargetingBehavior
             _ => null
         };
     }
-
 }

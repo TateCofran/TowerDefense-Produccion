@@ -1597,7 +1597,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ui: {fileID: 465550311}
   cam: {fileID: 963194227}
-  ghostPrefab: {fileID: 7333658948748976991, guid: e1603e964454cef4c9e80ce8d6250875, type: 3}
+  ghostPrefab: {fileID: 7333658948748976991, guid: 9665098fa95d16949b4d13b5a72e859e, type: 3}
   ghostOffset: {x: 0, y: 0, z: 0}
   cellLayers:
     serializedVersion: 2
