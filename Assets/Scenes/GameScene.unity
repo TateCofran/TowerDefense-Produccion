@@ -1517,7 +1517,7 @@ MonoBehaviour:
   waveManager: {fileID: 872382744}
   grid: {fileID: 1944914743}
   enemyPool: {fileID: 872382745}
-  defaultSpawnYOffset: 0.05
+  defaultSpawnYOffset: 0
   fallbackLineToCore: 1
   yieldBetweenSteps: 1
 --- !u!1 &901305807
@@ -3983,6 +3983,62 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1518305770}
   m_CullTransparentMesh: 1
+--- !u!1 &1527868242
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1527868243}
+  - component: {fileID: 1527868244}
+  m_Layer: 0
+  m_Name: PathEffectManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1527868243
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1527868242}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2091230205}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1527868244
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1527868242}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6edb7f2ff0c52114abef5afb30bdf943, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  enableAll: 1
+  enableDamage: 1
+  damagePerHit: 1
+  damageCooldown: 150
+  enableSlow: 1
+  slowMultiplier: 0.5
+  slowMax: 0.95
+  globalApplyIntervalOverride: 10
+  enableStun: 1
+  stunMultiplier: 1
+  stunMax: 10
+  stunCooldown: 8
 --- !u!1 &1544084684
 GameObject:
   m_ObjectHideFlags: 0
@@ -5384,8 +5440,26 @@ MonoBehaviour:
   - {fileID: 11400000, guid: c61d5635d1d30b24490139bea635675a, type: 2}
   - {fileID: 11400000, guid: cb2772025a736704c9e4876ca23cf1bc, type: 2}
   - {fileID: 11400000, guid: af7fe2e1a6435d741b52a0b4637cbf3b, type: 2}
-  grassPrefab: {fileID: 919132149155446097, guid: ee8efcd404cba824e8619506ee8746cc, type: 3}
-  pathPrefab: {fileID: 919132149155446097, guid: 8abc8e427a7e6194faf646f40a576006, type: 3}
+  - {fileID: 11400000, guid: 9ecdbed1bc6ab3b48905137c97f81b0f, type: 2}
+  - {fileID: 11400000, guid: 7f292781b6cbf664fad9c1211e49e167, type: 2}
+  - {fileID: 11400000, guid: f8a57e171747dfc46877db782761214a, type: 2}
+  - {fileID: 11400000, guid: a0aeda22ae29d794194f7f9a7413c5c5, type: 2}
+  - {fileID: 11400000, guid: 8ca84305f49189c49a27eccec77b6d4b, type: 2}
+  - {fileID: 11400000, guid: 2a25e41b42e19a84b945716f236cb3cf, type: 2}
+  - {fileID: 11400000, guid: d80751cc7b4a377498ccd319a39995f6, type: 2}
+  - {fileID: 11400000, guid: 437728d596b185e4d8c147263fdecaaf, type: 2}
+  - {fileID: 11400000, guid: 1b32119190b81eb4d9e3ae602ab363f5, type: 2}
+  - {fileID: 11400000, guid: f1288d5393b7c1f4fbd3fd81ffc8f21c, type: 2}
+  - {fileID: 11400000, guid: 036a31d0fbf837f43a86b44b8edecbcd, type: 2}
+  - {fileID: 11400000, guid: 51a16c75a254c72489fa6487a56c036d, type: 2}
+  - {fileID: 11400000, guid: 0ea3789402429e04cabc650854f6974c, type: 2}
+  - {fileID: 11400000, guid: eb2f6d256f133be4284aed4d6b6150d6, type: 2}
+  - {fileID: 11400000, guid: df43f9408ba2ed94c8f67638f1a8c637, type: 2}
+  - {fileID: 11400000, guid: 5e94e4ea8dd8af74582dbc5896f1db7a, type: 2}
+  - {fileID: 11400000, guid: 68a83c233eb7f1a4dab84fa98825a6d2, type: 2}
+  - {fileID: 11400000, guid: d6e6fda150c4a9242b7e8b9a3284728f, type: 2}
+  grassPrefab: {fileID: 2388724251714943427, guid: 7010977546ae63a43be3fb16197a80bb, type: 3}
+  pathPrefab: {fileID: 2388724251714943427, guid: 364f6d1e263687147a05b50d2089178f, type: 3}
   corePrefab: {fileID: 4187024404077585579, guid: 41ab7a6a18b8d714992bf9986a60bbd5, type: 3}
   coreOffset: {x: 0, y: 0, z: 0}
   tilesRoot: {fileID: 0}
@@ -5508,6 +5582,7 @@ Transform:
   - {fileID: 1944914744}
   - {fileID: 1440148546}
   - {fileID: 1365257413}
+  - {fileID: 1527868243}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2093477787

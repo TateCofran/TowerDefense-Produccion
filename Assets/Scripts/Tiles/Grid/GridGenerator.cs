@@ -738,6 +738,18 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
                 {
                     SetupGrassCell(go, layout);
                 }
+                else if (type == TileLayout.TileType.Path)
+                {
+                    // 1) Obtener modificadores desde el layout
+                    var mods = layout.GetPathModifiers(cell);
+
+                    // 2) Configurar el componente PathCellEffect
+                    var eff = go.GetComponent<PathCellEffect>();
+                    if (eff != null)
+                    {
+                        eff.Setup(mods.dps, mods.slow, mods.stun);
+                    }
+                }
             }
         }
         return count;

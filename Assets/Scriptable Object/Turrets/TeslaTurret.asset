@@ -15,7 +15,7 @@ MonoBehaviour:
   id: tesla_Turret
   type: 
   displayName: Turret Tesla
-  damage: 2
+  damage: 3
   range: 4
   fireRate: 1
   projectileSpeed: 1

@@ -30,6 +30,29 @@ public class TileLayout : ScriptableObject
     public Vector2Int entry = new Vector2Int(-1, -1);
     public List<Vector2Int> exits = new List<Vector2Int>();
 
+    [System.Serializable]
+    public struct PathModifiers
+    {
+        [Min(0)] public float dps;          // daño por segundo
+        [Range(0f, 1f)] public float slow;  // 0..1 (0.3 = 30% más lento)
+        [Min(0)] public float stun;         // segundos de stun
+    }
+
+    [Header("Path Modifiers (Defaults for the whole tile)")]
+    [Tooltip("Útil para tiles 'temáticas': Daño, Slow, Stun. Las básicas quedarán en 0.")]
+    public PathModifiers defaultPathMods;
+
+    [System.Serializable]
+    public struct PathModOverride
+    {
+        public Vector2Int grid;   // celda del layout
+        public PathModifiers mods; // valores específicos para esa celda
+    }
+
+    [Header("Path Modifiers (Overrides por celda)")]
+    public List<PathModOverride> perCellOverrides = new List<PathModOverride>();
+
+
     public Vector3 GridToWorld(Vector2Int g)
         => origin + new Vector3(g.x * cellSize, 0f, g.y * cellSize);
 
@@ -136,5 +159,20 @@ public class TileLayout : ScriptableObject
         }
 
         return true;
+    }
+
+    public PathModifiers GetPathModifiers(Vector2Int cell)
+    {
+        // Si no es path, no aplica nada
+        if (!IsPath(cell)) return default;
+
+        // Buscar override primero
+        for (int i = 0; i < perCellOverrides.Count; i++)
+        {
+            if (perCellOverrides[i].grid == cell)
+                return perCellOverrides[i].mods;
+        }
+        // Sino, defaults del tile
+        return defaultPathMods;
     }
 }

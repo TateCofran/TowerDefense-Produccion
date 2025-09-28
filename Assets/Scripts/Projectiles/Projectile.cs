@@ -76,7 +76,7 @@ public class Projectile : MonoBehaviour
         if (enemyGO == null || !enemyGO.activeInHierarchy) return;
 
         var damageable = enemyGO.GetComponentInChildren<IDamageable>();
-        Debug.Log("damageable: " + damageable);
+        //Debug.Log("damageable: " + damageable);
 
         if (damageable != null && IsTargetAlive(damageable))
         {

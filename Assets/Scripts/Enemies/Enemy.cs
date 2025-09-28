@@ -23,6 +23,8 @@ public class Enemy : MonoBehaviour, IEnemyDeathHandler // <- implementamos el ha
     public EnemyHealth Health { get; private set; }
     public EnemyHealthBar HealthBar { get; private set; }
 
+    private EnemyEffects _effects;
+
     // Evita notificar muerte más de una vez (pooling / Destroy / llegada al core)
     private bool _removedFromWave; // renombrado para contemplar ambas causas
 
@@ -30,6 +32,7 @@ public class Enemy : MonoBehaviour, IEnemyDeathHandler // <- implementamos el ha
     {
         Health = GetComponent<EnemyHealth>();
         HealthBar = GetComponent<EnemyHealthBar>();
+        _effects = GetComponent<EnemyEffects>();
 
         if (data == null)
             Debug.LogError($"[Enemy] {name} no tiene asignado EnemyData");
@@ -51,14 +54,19 @@ public class Enemy : MonoBehaviour, IEnemyDeathHandler // <- implementamos el ha
     }
 
 
+    // Reemplazá todo tu Update() por este
     private void Update()
     {
         if (_route.Count == 0 || _idx >= _route.Count) return;
+
+        // Si hay stun activo, no nos movemos (pero sí chequeamos llegada en el próximo frame)
+        if (_effects != null && _effects.IsStunned) return;
 
         var current = transform.position;
         var target = _route[_idx];
         var to = target - current;
 
+        // ¿Llegamos al waypoint?
         if (to.sqrMagnitude <= waypointTolerance * waypointTolerance)
         {
             _idx++;
@@ -72,7 +80,14 @@ public class Enemy : MonoBehaviour, IEnemyDeathHandler // <- implementamos el ha
         }
 
         var dir = to.normalized;
-        transform.position = Vector3.MoveTowards(current, target, data.moveSpeed * Time.deltaTime);
+
+        // Aplicar slow si existe (0..1). Si no hay efectos, usamos 1f.
+        float speedMultiplier = 1f;
+        if (_effects != null)
+            speedMultiplier = Mathf.Clamp01(_effects.CurrentSpeedMultiplier);
+
+        float step = data.moveSpeed * speedMultiplier * Time.deltaTime;
+        transform.position = Vector3.MoveTowards(current, target, step);
 
         if (faceDirection && dir.sqrMagnitude > 0.0001f)
         {
@@ -80,6 +95,7 @@ public class Enemy : MonoBehaviour, IEnemyDeathHandler // <- implementamos el ha
             transform.rotation = Quaternion.Slerp(transform.rotation, look, 0.25f);
         }
     }
+
     private void OnTriggerEnter(Collider other)
     {
         if (hasHitCore) return;
