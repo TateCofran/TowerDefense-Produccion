@@ -25,7 +25,7 @@ public class Core : MonoBehaviour
         {
             Debug.Log("Core destroyed!");
             // Lógica de game over
-            SceneManager.LoadScene("GameScene");
+            SceneManager.LoadScene("Menu");
 
         }
     }
