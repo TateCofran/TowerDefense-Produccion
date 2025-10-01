@@ -6686,7 +6686,10 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 68a83c233eb7f1a4dab84fa98825a6d2, type: 2}
   - {fileID: 11400000, guid: d6e6fda150c4a9242b7e8b9a3284728f, type: 2}
   grassPrefab: {fileID: 2388724251714943427, guid: 7010977546ae63a43be3fb16197a80bb, type: 3}
-  pathPrefab: {fileID: 2388724251714943427, guid: 364f6d1e263687147a05b50d2089178f, type: 3}
+  pathBasicPrefab: {fileID: 2388724251714943427, guid: 364f6d1e263687147a05b50d2089178f, type: 3}
+  pathDamagePrefab: {fileID: 249658324801834281, guid: f791e870d3f843e4d9d5a98843ea51c4, type: 3}
+  pathSlowPrefab: {fileID: 4166436541929648006, guid: 4e4ff53c1f77c0c44a6055e1a8e7af30, type: 3}
+  pathStunPrefab: {fileID: 3081537824206170494, guid: 5c343e35cd3127847baeecb3cb302490, type: 3}
   corePrefab: {fileID: 4187024404077585579, guid: 41ab7a6a18b8d714992bf9986a60bbd5, type: 3}
   coreOffset: {x: 0, y: 0, z: 0}
   tilesRoot: {fileID: 0}
@@ -6908,6 +6911,67 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
+--- !u!1001 &2078200595
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 3291181023223361483, guid: f4ec192a3a35b5f42a0059935148bbe8, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3291181023223361483, guid: f4ec192a3a35b5f42a0059935148bbe8, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3291181023223361483, guid: f4ec192a3a35b5f42a0059935148bbe8, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3291181023223361483, guid: f4ec192a3a35b5f42a0059935148bbe8, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3291181023223361483, guid: f4ec192a3a35b5f42a0059935148bbe8, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3291181023223361483, guid: f4ec192a3a35b5f42a0059935148bbe8, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3291181023223361483, guid: f4ec192a3a35b5f42a0059935148bbe8, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3291181023223361483, guid: f4ec192a3a35b5f42a0059935148bbe8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3291181023223361483, guid: f4ec192a3a35b5f42a0059935148bbe8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3291181023223361483, guid: f4ec192a3a35b5f42a0059935148bbe8, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7333658948748976991, guid: f4ec192a3a35b5f42a0059935148bbe8, type: 3}
+      propertyPath: m_Name
+      value: TurretTeslaPrefab
+      objectReference: {fileID: 0}
+    - target: {fileID: 7333658948748976991, guid: f4ec192a3a35b5f42a0059935148bbe8, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f4ec192a3a35b5f42a0059935148bbe8, type: 3}
 --- !u!1 &2091230204
 GameObject:
   m_ObjectHideFlags: 0
@@ -7386,3 +7450,4 @@ SceneRoots:
   - {fileID: 1092635640}
   - {fileID: 2091230205}
   - {fileID: 985941588}
+  - {fileID: 2078200595}

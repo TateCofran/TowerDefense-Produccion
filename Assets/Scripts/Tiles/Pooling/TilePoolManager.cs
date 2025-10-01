@@ -13,14 +13,17 @@ public class TilePoolManager : MonoBehaviour, ITilePoolManager
     {
         if (!useObjectPooling) return;
 
-        // Estos prefabs se deben asignar desde el GridGenerator principal
         var gridGenerator = GetComponent<GridGenerator>();
         if (gridGenerator != null)
         {
             InitializePool(gridGenerator.GrassPrefab, initialPoolSize);
-            InitializePool(gridGenerator.PathPrefab, initialPoolSize);
+            InitializePool(gridGenerator.PathBasicPrefab, initialPoolSize);
+            InitializePool(gridGenerator.PathDamagePrefab, initialPoolSize);
+            InitializePool(gridGenerator.PathSlowPrefab, initialPoolSize);
+            InitializePool(gridGenerator.PathStunPrefab, initialPoolSize);
         }
     }
+
 
     private void InitializePool(GameObject prefab, int size)
     {

@@ -17,7 +17,10 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
 
     [Header("Prefabs")]
     [SerializeField] private GameObject grassPrefab;
-    [SerializeField] private GameObject pathPrefab;
+    [SerializeField] private GameObject pathBasicPrefab;
+    [SerializeField] private GameObject pathDamagePrefab;
+    [SerializeField] private GameObject pathSlowPrefab;
+    [SerializeField] private GameObject pathStunPrefab;
 
     [Header("Core")]
     [SerializeField] private GameObject corePrefab; // Prefab del Core
@@ -50,7 +53,10 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
 
     // Propiedades públicas para acceso de las dependencias
     public GameObject GrassPrefab => grassPrefab;
-    public GameObject PathPrefab => pathPrefab;
+    public GameObject PathBasicPrefab => pathBasicPrefab;
+    public GameObject PathDamagePrefab => pathDamagePrefab;
+    public GameObject PathSlowPrefab => pathSlowPrefab;
+    public GameObject PathStunPrefab => pathStunPrefab;
 
     // Propiedades públicas para TileLayoutGizmos
     public TileLayout CurrentLayout => _chainCount > 0 ? _chainArray[_chainCount - 1].layout : initialLayout;
@@ -714,7 +720,16 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
                     continue;
                 }
 
-                GameObject prefab = (type == TileLayout.TileType.Path) ? pathPrefab : grassPrefab;
+                GameObject prefab;
+                if (type == TileLayout.TileType.Path)
+                {
+                    var mods = layout.GetPathModifiers(cell);
+                    prefab = ChoosePathPrefabForMods(mods.dps, mods.slow, mods.stun);
+                }
+                else
+                {
+                    prefab = grassPrefab;
+                }
                 if (!prefab) continue;
 
                 Vector3 basePos = worldOrigin + TileOrientationCalculator.CellToWorldLocal(cell, layout, rotSteps, flip);
@@ -939,13 +954,22 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
 
     private bool CheckPrefabs()
     {
-        if (grassPrefab == null || pathPrefab == null)
+        if (grassPrefab == null || pathBasicPrefab == null || pathDamagePrefab == null || pathSlowPrefab == null || pathStunPrefab == null)
         {
-            Debug.LogError("[GridGenerator] Asigná grassPrefab y pathPrefab.");
+            Debug.LogError("[GridGenerator] Asigná todos los prefabs de path y grass.");
             return false;
         }
         return true;
     }
+    private GameObject ChoosePathPrefabForMods(float damage, float slow, float stun)
+    {
+        // Prioridad: Stun > Slow > Damage > Basic
+        if (stun > 0f) return pathStunPrefab;
+        if (slow > 0f) return pathSlowPrefab;
+        if (damage > 0f) return pathDamagePrefab;
+        return pathBasicPrefab;
+    }
+
 
     private void EnsureRoot()
     {
@@ -961,12 +985,35 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
     {
         if (tilePoolManager != null)
         {
-            foreach (Transform child in tilesRoot)
+            for (int i = tilesRoot.childCount - 1; i >= 0; i--)
             {
-                if (child.CompareTag("Cell"))
-                    tilePoolManager.ReturnToPool(grassPrefab, child.gameObject);
-                else
-                    tilePoolManager.ReturnToPool(pathPrefab, child.gameObject);
+                var child = tilesRoot.GetChild(i);
+                var go = child.gameObject;
+
+                // ¿Grass?
+                if (go.CompareTag("Cell"))
+                {
+                    tilePoolManager.ReturnToPool(grassPrefab, go);
+                    continue;
+                }
+
+                // ¿Path? (miramos su PathCellEffect)
+                var eff = go.GetComponent<PathCellEffect>();
+                if (eff != null)
+                {
+                    // Si en tu PathCellEffect tenés 'damagePerHit/slow/stun':
+                    GameObject prefabRef;
+                    if (eff.stun > 0f) prefabRef = pathStunPrefab;
+                    else if (eff.slow > 0f) prefabRef = pathSlowPrefab;
+                    else if (eff.damagePerHit > 0) prefabRef = pathDamagePrefab;
+                    else prefabRef = pathBasicPrefab;
+
+                    tilePoolManager.ReturnToPool(prefabRef, go);
+                    continue;
+                }
+
+                // Fallback (si no encontramos nada reconocible)
+                Destroy(go);
             }
         }
         else
@@ -975,8 +1022,8 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
             for (int i = tilesRoot.childCount - 1; i >= 0; i--)
                 DestroyImmediate(tilesRoot.GetChild(i).gameObject);
 #else
-            for (int i = tilesRoot.childCount - 1; i >= 0; i--)
-                Destroy(tilesRoot.GetChild(i).gameObject);
+        for (int i = tilesRoot.childCount - 1; i >= 0; i--)
+            Destroy(tilesRoot.GetChild(i).gameObject);
 #endif
         }
     }
