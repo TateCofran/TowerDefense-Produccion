@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 85511830493932313}
   - component: {fileID: 3927164283265230012}
   - component: {fileID: 1253373239723348086}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: BasicBallista
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -100,7 +100,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5886391253151756493}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Fire point
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -134,16 +134,16 @@ GameObject:
   - component: {fileID: 5923145427433355936}
   - component: {fileID: 1890560010008340660}
   - component: {fileID: 5778865115430028793}
+  - component: {fileID: 5891854879322368033}
   - component: {fileID: -4348509830824525796}
   - component: {fileID: 7168626268269157596}
   - component: {fileID: -4133563998839969800}
-  - component: {fileID: 5891854879322368033}
   - component: {fileID: -1736114372195006776}
   - component: {fileID: -7196102455735509390}
   - component: {fileID: -5094175044013030926}
   - component: {fileID: -7384505950414907851}
-  - component: {fileID: 4398333470399051238}
-  m_Layer: 0
+  - component: {fileID: 1531119936590128973}
+  m_Layer: 8
   m_Name: TurretBasicPrefab
   m_TagString: Turret
   m_Icon: {fileID: 0}
@@ -228,7 +228,7 @@ LineRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7333658948748976991}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -386,6 +386,27 @@ LineRenderer:
   m_UseWorldSpace: 0
   m_Loop: 1
   m_ApplyActiveColorSpace: 1
+--- !u!65 &5891854879322368033
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7333658948748976991}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 0.5662368, z: 1}
+  m_Center: {x: 0, y: 0.21688159, z: 0}
 --- !u!114 &-4348509830824525796
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -442,27 +463,6 @@ MonoBehaviour:
     damageMultiplier: 1
     rangeMultiplier: 1
     fireRateMultiplier: 1
---- !u!65 &5891854879322368033
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7333658948748976991}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 1, y: 0.5662368, z: 1}
-  m_Center: {x: 0, y: 0.21688159, z: 0}
 --- !u!114 &-1736114372195006776
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -502,7 +502,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   lineRenderer: {fileID: 5778865115430028793}
-  segments: 60
+  targetChordLength: 0.15
+  minSegments: 24
+  maxSegments: 256
+  yOffset: 0.02
+  alwaysRedrawOnShow: 1
 --- !u!114 &-7384505950414907851
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -517,7 +521,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   stats: {fileID: -4348509830824525796}
   showRangeOnStart: 1
---- !u!114 &4398333470399051238
+--- !u!114 &1531119936590128973
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -526,7 +530,16 @@ MonoBehaviour:
   m_GameObject: {fileID: 7333658948748976991}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 49e2302128e82f04687315beb5f3b13e, type: 3}
+  m_Script: {fileID: 11500000, guid: 03318502be8705248b155368ecb5bb22, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  firePoint: {fileID: 5886391253151756493}
+  hittableLayers:
+    serializedVersion: 2
+    m_Bits: 64
+  sphereCastRadius: 0
+  targetOffset: {x: 0, y: 0.35, z: 0}
+  debugDraw: 1
+  impactVfxPrefab: {fileID: 587981244718552827, guid: 32b9e95b23c3cb34cac23a7c765e97f1, type: 3}
+  impactVfxOffsetAlongNormal: 0
+  parentVfxToHit: 1
+  impactVfxLifetime: 1.5

@@ -5,25 +5,36 @@ public class FireTurret : MonoBehaviour, IShootingBehavior
 {
     private ITurretStats stats;
 
-    [Header("Projectile settings")]
+    [Header("Refs")]
     [SerializeField] private Transform firePoint;
-    [SerializeField] private GameObject projectilePrefab;
 
-    [Header("Daño de fuego")]
-    [SerializeField] private float tickRate = 1f;               // cuántos ticks por segundo
-    [SerializeField] private float damageFractionPerSecond = 1f/2f;
+    [Header("Raycast")]
+    [SerializeField] private LayerMask hittableLayers = ~0;
+    [SerializeField] private LayerMask losBlockers = 0;
+    [SerializeField] private float sphereCastRadius = 0.12f;
+    [SerializeField] private Vector3 targetOffset = new Vector3(0f, 0.35f, 0f);
+    [SerializeField] private bool debugDraw;
+
+    [Header("Impact VFX (en la adquisición del objetivo)")]
+    [SerializeField] private GameObject impactVfxPrefab;
+    [SerializeField] private float impactVfxOffsetAlongNormal = 0.03f;
+    [SerializeField] private bool parentVfxToHit = true;
+    [SerializeField] private float impactVfxLifetime = 1.5f;
+
+    [Header("Daño de fuego (DoT)")]
+    [SerializeField] private float tickRate = 1f;
+    [SerializeField] private float damageFractionPerSecond = 1f / 2f;
+    [Tooltip("Opcional: instanciar VFX en cada tick (en el centro del enemigo).")]
+    [SerializeField] private bool vfxOnEachTick = false;
 
     private float tickCountdown;
-    private Enemy burningTarget;           // enemigo marcado para DoT
-    private float totalDamageApplied = 0f; // no superar stats.Damage
-    private bool hasFiredProjectile = false;
+    private Enemy burningTarget;
+    private float totalDamageApplied = 0f;
 
     private void Awake()
     {
         stats = GetComponent<ITurretStats>();
-        if (stats == null)
-            Debug.LogError("[FireTurret] No se encontró ITurretStats en la torreta.");
-
+        if (!firePoint) Debug.LogWarning("[FireTurret] Falta asignar firePoint.");
         tickCountdown = 0f;
     }
 
@@ -32,7 +43,6 @@ public class FireTurret : MonoBehaviour, IShootingBehavior
         if (burningTarget == null) return;
 
         tickCountdown -= Time.deltaTime;
-
         if (tickCountdown <= 0f)
         {
             ApplyBurnDamage();
@@ -40,70 +50,130 @@ public class FireTurret : MonoBehaviour, IShootingBehavior
         }
     }
 
-    public void MarkTarget(Transform target)
+    public void Shoot(Transform firePointIgnored, Transform target, ITurretStats statsParam)
     {
-        if (target == null) return;
+        if (!firePoint || target == null || stats == null) return;
 
-        //si ya hay un target vivo no lo cambia
-        if (burningTarget != null && !burningTarget.Health.IsDead())
-            return;
+        Vector3 o = firePoint.position;
+        Vector3 hitPos = target.position + targetOffset;
+        Vector3 dir = (hitPos - o);
+        float dist = dir.magnitude;
+        if (dist <= 0.001f) return;
 
-        burningTarget = target.GetComponent<Enemy>();
-        totalDamageApplied = 0f;
-        hasFiredProjectile = false; //para disparar la primer bala
-    }
+        Vector3 ndir = dir / dist;
 
-    public void Shoot(Transform firePoint, Transform target, ITurretStats stats)
-    {
-
-        if (burningTarget == null || burningTarget.Health == null || burningTarget.Health.IsDead())
-            return;
-
-        if (!hasFiredProjectile && target != null && projectilePrefab != null)
+        // LOS opcional
+        if (losBlockers != 0 &&
+            Physics.Raycast(o, ndir, dist, losBlockers, QueryTriggerInteraction.Ignore))
         {
-            var projectile = ProjectilePool.Instance.GetProjectile();
-            projectile.transform.position = firePoint.position;
-            projectile.transform.rotation = firePoint.rotation;
-            projectile.SetActive(true);
-
-            var projScript = projectile.GetComponent<Projectile>();
-            if (projScript != null)
-                projScript.Initialize(target, 0); //daño lo maneja FireTurret sino tendria q hacer el calculo del primer tick aca y pasarle eso al initialize
-
-            hasFiredProjectile = true;
+            if (debugDraw) Debug.DrawLine(o, hitPos, Color.gray, 0.1f);
+            return;
         }
-        
-        //para seguir haciendole daño al target
-        MarkTarget(target);
+
+        bool acquired = false;
+
+        // Raycast directo
+        if (Physics.Raycast(o, ndir, out RaycastHit hit, dist + 0.25f, hittableLayers, QueryTriggerInteraction.Ignore))
+        {
+            if (TryGetEnemy(hit.collider.transform, out var enemy))
+            {
+                SpawnImpactVfx(hit, ndir);
+                StartOrRefreshBurn(enemy);
+                if (debugDraw) Debug.DrawLine(o, hit.point, Color.red, 0.1f);
+                acquired = true;
+            }
+        }
+
+        // SphereCast fallback
+        if (!acquired && sphereCastRadius > 0f &&
+            Physics.SphereCast(o, sphereCastRadius, ndir, out RaycastHit shit, dist + 0.25f, hittableLayers, QueryTriggerInteraction.Ignore))
+        {
+            if (TryGetEnemy(shit.collider.transform, out var enemy))
+            {
+                SpawnImpactVfx(shit, ndir);
+                StartOrRefreshBurn(enemy);
+                if (debugDraw) Debug.DrawLine(o, shit.point, Color.magenta, 0.1f);
+                acquired = true;
+            }
+        }
     }
 
-     private void ApplyBurnDamage()
-     {
-         if (burningTarget == null || burningTarget.Health == null) return;
+    private void StartOrRefreshBurn(Enemy enemy)
+    {
+        if (enemy == null || enemy.Health == null || enemy.Health.IsDead()) return;
+        if (burningTarget == enemy) return;
 
-         if (!burningTarget.Health.IsDead() && totalDamageApplied < stats.Damage)
-         {
-            float remainingDamage = stats.Damage - totalDamageApplied;
-            float dps = stats.Damage * damageFractionPerSecond;
-            float damageThisTick = Mathf.Min(dps, remainingDamage);
+        burningTarget = enemy;
+        totalDamageApplied = 0f;
+        tickCountdown = 0f;
+    }
 
-            float prevHealth = burningTarget.Health.GetCurrentHealth();
-            burningTarget.Health.TakeDamage(damageThisTick);
-            float newHealth = burningTarget.Health.GetCurrentHealth();
-
-            float realApplied = prevHealth - newHealth;
-            totalDamageApplied += realApplied;
-
-            Debug.Log($"[{gameObject.name}]. Tick de fuego: {damageThisTick}, (real aplicado: {realApplied}), total: {totalDamageApplied}");
-            Debug.Log("Enemy max health: " + burningTarget.Health.GetMaxHealth() + ". Enemy current health: " + burningTarget.Health.GetCurrentHealth());
-        }
-         else
-         {
-            Debug.Log($"[{gameObject.name}] DoT finalizado. Total aplicado: {totalDamageApplied}");
+    private void ApplyBurnDamage()
+    {
+        if (burningTarget == null || burningTarget.Health == null) return;
+        if (burningTarget.Health.IsDead())
+        {
             burningTarget = null;
             totalDamageApplied = 0f;
-            hasFiredProjectile = false;
-         }
-        
+            return;
+        }
+
+        if (totalDamageApplied < stats.Damage)
+        {
+            float remaining = stats.Damage - totalDamageApplied;
+            float dps = Mathf.Max(0f, stats.Damage * damageFractionPerSecond);
+            float damageThisTick = Mathf.Min(dps, remaining);
+
+            int dmgInt = Mathf.Max(1, Mathf.RoundToInt(damageThisTick));
+            float before = burningTarget.Health.GetCurrentHealth();
+            burningTarget.Health.TakeDamage(dmgInt);
+            float after = burningTarget.Health.GetCurrentHealth();
+
+            float realApplied = Mathf.Max(0f, before - after);
+            totalDamageApplied += realApplied;
+
+            if (vfxOnEachTick && impactVfxPrefab)
+            {
+                // Instanciamos en el centro del enemigo (sin normal de impacto).
+                Vector3 pos = burningTarget.transform.position + Vector3.up * 0.35f;
+                GameObject fx = Instantiate(impactVfxPrefab, pos, Quaternion.identity, parentVfxToHit ? burningTarget.transform : null);
+                if (impactVfxLifetime > 0f) Destroy(fx, impactVfxLifetime);
+            }
+        }
+        else
+        {
+            burningTarget = null;
+            totalDamageApplied = 0f;
+        }
+    }
+
+    private void SpawnImpactVfx(RaycastHit hit, Vector3 fallbackDir)
+    {
+        if (!impactVfxPrefab) return;
+
+        Vector3 normal = hit.normal.sqrMagnitude > 0.0001f ? hit.normal : -fallbackDir;
+        Vector3 pos = hit.point + normal * impactVfxOffsetAlongNormal;
+        Quaternion rot = Quaternion.LookRotation(normal);
+        Transform parent = parentVfxToHit ? hit.collider.transform : null;
+
+        GameObject fx = Instantiate(impactVfxPrefab, pos, rot, parent);
+        if (impactVfxLifetime > 0f) Destroy(fx, impactVfxLifetime);
+    }
+
+    private static bool TryGetEnemy(Transform t, out Enemy enemy)
+    {
+        enemy = null;
+        if (!t) return false;
+
+        enemy = t.GetComponentInParent<Enemy>();
+        if (enemy != null && enemy.Health != null) return true;
+
+        var health = t.GetComponentInParent<EnemyHealth>();
+        if (health != null)
+        {
+            enemy = health.GetComponentInParent<Enemy>();
+            return enemy != null && enemy.Health != null;
+        }
+        return false;
     }
 }

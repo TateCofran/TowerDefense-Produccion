@@ -5,15 +5,16 @@ public class TurretShooter : MonoBehaviour
     [SerializeField] private Transform firePoint;
     private IShootingBehavior shootingBehavior;
     private ITurretStats stats;
-    private TurretDataHolder dataHolder;
 
     private float fireCountdown;
     private Transform currentTarget;
 
+    // NUEVO: respetar el gate de colocación
+    private bool _combatEnabled = true;
+
     void Awake()
     {
         stats = GetComponent<ITurretStats>();
-        dataHolder = GetComponent<TurretDataHolder>();
         shootingBehavior = GetComponent<IShootingBehavior>();
 
         if (shootingBehavior == null)
@@ -25,6 +26,7 @@ public class TurretShooter : MonoBehaviour
 
     void Update()
     {
+        if (!_combatEnabled) return;         // <- NUEVO: no disparar si no está colocado
         if (currentTarget == null) return;
 
         fireCountdown -= Time.deltaTime;
@@ -38,30 +40,20 @@ public class TurretShooter : MonoBehaviour
 
     public void SetTarget(Transform target)
     {
-        if (target == null)
-        {
-            currentTarget = null;
-            return;
-        }
+        if (target == null) { currentTarget = null; return; }
 
         var enemy = target.GetComponent<Enemy>();
-        if (enemy == null)
-        {
-            currentTarget = null;
-            return;
-        }
-
-        // puntar a cualquier enemigo, sin importar mundos
-        currentTarget = target;
+        currentTarget = enemy ? target : null;
     }
 
+    public void SetCombatEnabled(bool enabledCombat)
+    {
+        _combatEnabled = enabledCombat;
+    }
 
     private void Shoot()
     {
-        if (shootingBehavior == null || firePoint == null || stats == null)
-            return;
-
+        if (shootingBehavior == null || firePoint == null || stats == null) return;
         shootingBehavior.Shoot(firePoint, currentTarget, stats);
     }
-
 }

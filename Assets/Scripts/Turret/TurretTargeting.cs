@@ -29,7 +29,7 @@ public class TurretTargeting : MonoBehaviour, ITargetingBehavior
         {
             if (fireTurret != null)
             {
-                fireTurret.MarkTarget(targetInRange);
+                //fireTurret.MarkTarget(targetInRange);
                 shooter?.SetTarget(targetInRange);
             }
             else

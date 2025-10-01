@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 85511830493932313}
   - component: {fileID: 3927164283265230012}
   - component: {fileID: 1253373239723348086}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: BasicBallista
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -100,7 +100,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5886391253151756493}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Fire point
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -143,7 +143,7 @@ GameObject:
   - component: {fileID: 7185941110257746177}
   - component: {fileID: 555038323792173418}
   - component: {fileID: -8129837269562391679}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: TurretTeslaPrefab
   m_TagString: Turret
   m_Icon: {fileID: 0}
@@ -249,7 +249,7 @@ LineRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7333658948748976991}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
@@ -443,7 +443,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   lineRenderer: {fileID: 5778865115430028793}
-  segments: 60
+  targetChordLength: 0.15
+  minSegments: 24
+  maxSegments: 256
+  yOffset: 0.02
+  alwaysRedrawOnShow: 1
 --- !u!114 &555038323792173418
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -471,3 +475,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   firePoint: {fileID: 3291181023223361483}
+  hittableLayers:
+    serializedVersion: 2
+    m_Bits: 64
+  losBlockers:
+    serializedVersion: 2
+    m_Bits: 0
+  sphereCastRadius: 0.18
+  targetOffset: {x: 0, y: 0.35, z: 0}
+  debugDraw: 0
+  impactVfxPrefab: {fileID: 4647727116774360931, guid: 80f0d08269ae47e4c9937c5bdc48ef4e, type: 3}
+  impactVfxOffsetAlongNormal: 0.03
+  parentVfxToHit: 1
+  impactVfxLifetime: 1.5

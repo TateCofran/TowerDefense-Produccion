@@ -11,6 +11,11 @@ public class CellSlot : MonoBehaviour
     [SerializeField] private bool occupied = false;
     [SerializeField] private GameObject currentTurret;
 
+    [Header("Opcional")]
+    [Tooltip("Si está activo, al colocar la torreta se muestra el rango automáticamente.")]
+    [SerializeField] private bool showRangeOnPlace = false;
+
+    // (si lo usás en otro lado)
     [SerializeField] private ITurretDupeSystem dupeSystem;
 
     private Collider _cellCollider;      // collider de la celda (o hijo)
@@ -29,7 +34,8 @@ public class CellSlot : MonoBehaviour
 
     private void Start()
     {
-        dupeSystem = FindFirstObjectByType<TurretDupeSystem>();
+        // Si necesitás el sistema de dupes concreto:
+        // dupeSystem = FindFirstObjectByType<TurretDupeSystem>();
     }
 
     /// <summary>
@@ -75,13 +81,27 @@ public class CellSlot : MonoBehaviour
         return 0.5f; // valor por defecto si no hay nada
     }
 
+    // ============================
+    // API principal (firma original conservada)
+    // ============================
     /// <summary>
     /// Coloca la torreta apoyando su base sobre la tapa de la celda.
     /// Si el prefab tiene un hijo "BaseAnchor", se alinea exactamente con la tapa.
     /// Si no tiene, se calcula por altura visual.
+    /// IMPORTANTE: marca la torreta como colocada (SetPlaced(true)).
     /// </summary>
     public bool TryPlace(GameObject turretPrefab, TurretDataSO turretData = null)
     {
+        return TryPlace(turretPrefab, turretData, out _);
+    }
+
+    // ============================
+    // Sobrecarga opcional con 'out' por si la querés usar desde UI/placer externo
+    // ============================
+    public bool TryPlace(GameObject turretPrefab, TurretDataSO turretData, out GameObject instance)
+    {
+        instance = null;
+
         if (occupied || !turretPrefab) return false;
 
         Vector3 top = GetTopCenter();
@@ -107,16 +127,32 @@ public class CellSlot : MonoBehaviour
             turret.transform.position = new Vector3(top.x, targetY, top.z);
         }
 
-        // Guardar estado
-        currentTurret = turret;
-        occupied = true;
-
         // Configurar el data holder si existe
         var dataHolder = turret.GetComponent<TurretDataHolder>();
         if (dataHolder != null && turretData != null)
         {
             dataHolder.ApplyDataSO(turretData);
         }
+
+        // === CLAVE: marcar como colocada para habilitar targeting/disparo ===
+        var turretComp = turret.GetComponent<Turret>();
+        if (turretComp != null)
+        {
+            turretComp.SetPlaced(true);
+
+            // opcional: mostrar rango al colocar
+            if (showRangeOnPlace) turretComp.ShowRange();
+        }
+        else
+        {
+            Debug.LogWarning($"[CellSlot] La instancia '{turret.name}' no tiene componente Turret. " +
+                             $"No podrá activar/desactivar combate por placement.");
+        }
+
+        // Guardar estado
+        currentTurret = turret;
+        occupied = true;
+        instance = turret;
 
         return true;
     }
