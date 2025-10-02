@@ -68,6 +68,27 @@ public class ShiftingWorldUI : MonoBehaviour
     [SerializeField] private Image normalWorldFill;   // 0..1
     [SerializeField] private Image otherWorldFill;    // 0..1
     [SerializeField] private Image worldToggleCooldownFill; // 0..1 (recarga)
+
+    // --- NUEVO: helper para trackear cada botón ---
+    private class ExitBtn
+    {
+        public string label;
+        public Vector3 worldPos;
+        public RectTransform rect;
+    }
+
+    // Lista con la info de cada botón
+    private readonly List<ExitBtn> exitBtnInfo = new();
+
+    // Altura en MUNDO (se multiplica por cellSize)
+    [SerializeField] private float buttonWorldYOffset = 1.0f;
+
+    // Altura extra en PANTALLA (pixeles) para Overlay/Camera
+    [SerializeField] private float buttonScreenYOffset = 24f;
+
+    // Forzar pivot abajo (0.5, 0) para que el punto quede en la base
+    [SerializeField] private bool buttonPivotBottom = true;
+
     void Awake()
     {
         HideAll(); // arranca limpio
@@ -84,12 +105,32 @@ public class ShiftingWorldUI : MonoBehaviour
         if (placeWithUI && turretPlacingMode)
             HandleTurretPlacementMode();
 
-        // Mantener botones de exit mirando a la cámara
-        if (tilePlacingMode && exitButtonsCanvas && cam)
+        if (tilePlacingMode && exitButtonsCanvas && (cam || Camera.main))
         {
-            exitButtonsCanvas.transform.rotation =
-                Quaternion.LookRotation(exitButtonsCanvas.transform.position - cam.transform.position);
+            var camToUse = cam ? cam : Camera.main;
+
+            // Billboard sólo para World Space
+            if (exitButtonsCanvas.renderMode == RenderMode.WorldSpace)
+            {
+                var toCam = camToUse.transform.position - exitButtonsCanvas.transform.position;
+                exitButtonsCanvas.transform.rotation = Quaternion.LookRotation(toCam);
+            }
+
+            var canvasRect = exitButtonsCanvas.transform as RectTransform;
+
+            foreach (var e in exitBtnInfo)
+            {
+                SetExitButtonPosition(
+                    e.rect,
+                    e.worldPos + Vector3.up * GetWorldYOffset(),
+                    exitButtonsCanvas,
+                    canvasRect,
+                    camToUse
+                );
+            }
         }
+
+
     }
 
     // ============================
@@ -165,48 +206,108 @@ public class ShiftingWorldUI : MonoBehaviour
     private void CreateExitButtons()
     {
         ClearExitButtons();
+        exitBtnInfo.Clear();
 
         var exits = grid.GetAvailableExits();
-        Camera mainCamera = cam ? cam : Camera.main;
+        if (!exitButtonPrefab || !exitButtonsCanvas) return;
+
+        Camera camToUse = cam ? cam : Camera.main;
+        var canvasRect = exitButtonsCanvas.transform as RectTransform;
 
         foreach (var (label, worldPos) in exits)
         {
-            if (!exitButtonPrefab || !exitButtonsCanvas) continue;
+            var go = Instantiate(exitButtonPrefab, exitButtonsCanvas.transform);
+            var btn = go.GetComponent<Button>();
+            var rect = go.GetComponent<RectTransform>();
+            var txt = go.GetComponentInChildren<TMPro.TMP_Text>();
+            if (txt) txt.text = label;
 
-            GameObject buttonObj = Instantiate(exitButtonPrefab, exitButtonsCanvas.transform);
-            Button button = buttonObj.GetComponent<Button>();
-            if (!button) continue;
+            // Anclaje y pivot para que el punto quede en la base del botón
+            if (buttonPivotBottom)
+            {
+                rect.pivot = new Vector2(0.5f, 0f);
+                rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            }
 
-            Vector3 screenPos = mainCamera.WorldToScreenPoint(worldPos + Vector3.up * 1f);
-            button.transform.position = screenPos;
+            exitBtnInfo.Add(new ExitBtn { label = label, worldPos = worldPos, rect = rect });
 
-            TMP_Text buttonText = buttonObj.GetComponentInChildren<TMP_Text>();
-            if (buttonText) buttonText.text = label;
+            // Posición inicial (igual se re-calcula en Update)
+            SetExitButtonPosition(
+                rect,
+                worldPos + Vector3.up * GetWorldYOffset(),
+                exitButtonsCanvas,
+                canvasRect,
+                camToUse
+            );
 
-            string exitLabel = label;
-            button.onClick.AddListener(() => OnExitButtonClicked(exitLabel));
-            exitButtons.Add(button);
+            string captured = label;
+            btn.onClick.AddListener(() => OnExitButtonClicked(captured));
         }
 
-        if (exitButtonsCanvas) exitButtonsCanvas.gameObject.SetActive(true);
+        exitButtonsCanvas.gameObject.SetActive(true);
     }
+
+    private float GetWorldYOffset()
+    {
+        // Levantar según cellSize para que se vea bien con distintos tiles
+        var layout = grid ? grid.CurrentLayout : null;
+        float cs = layout ? layout.cellSize : 1f;
+        return buttonWorldYOffset * cs;
+    }
+
+
+    private void SetExitButtonPosition(
+     RectTransform rect, Vector3 world, Canvas canvas, RectTransform canvasRect, Camera camToUse)
+    {
+        switch (canvas.renderMode)
+        {
+            case RenderMode.WorldSpace:
+                // En World Space usamos offset en MUNDO (ya sumado al 'world' que entra)
+                rect.position = world;
+                break;
+
+            case RenderMode.ScreenSpaceCamera:
+                {
+                    // Mundo -> Pantalla -> Local del canvas
+                    Vector2 screen = RectTransformUtility.WorldToScreenPoint(camToUse, world);
+                    RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                        canvasRect, screen, camToUse, out Vector2 local);
+                    // Levantamos en pixeles (pantalla)
+                    local.y += buttonScreenYOffset;
+                    rect.anchoredPosition = local;
+                    break;
+                }
+
+            case RenderMode.ScreenSpaceOverlay:
+            default:
+                {
+                    Vector2 screen = RectTransformUtility.WorldToScreenPoint(camToUse, world);
+                    RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                        canvasRect, screen, null, out Vector2 local);
+                    local.y += buttonScreenYOffset; // offset en pixeles
+                    rect.anchoredPosition = local;
+                    break;
+                }
+        }
+    }
+
+
 
     private void OnExitButtonClicked(string exitLabel)
     {
         if (!selectedTileLayout) return;
 
-        int exitIndex = FindExitIndexByLabel(exitLabel);
-        if (exitIndex == -1) return;
-
         grid.UI_SetExitByLabel(exitLabel);
-
         bool ok = grid.AppendNextUsingSelectedExitWithLayout(selectedTileLayout);
+
+        // ⬅️ SIN importar ok, refrescá los botones porque los labels pudieron cambiar
+        HideExitButtons();
+        CreateExitButtons();
 
         if (ok)
         {
             Debug.Log($"[ShiftingWorldUI] Tile {selectedTileLayout.name} colocado en exit {exitLabel}");
 
-            // Notificación opcional al sistema de oleadas
             PlacementEvents.RaiseTileApplied(new PlacementEvents.TileAppliedInfo
             {
                 tileGridCoord = Vector2Int.zero,
@@ -215,14 +316,15 @@ public class ShiftingWorldUI : MonoBehaviour
             });
 
             ExitTilePlacementMode();
-            CloseTilePanelOnly(); // ← cerrar SOLO el panel/flujo de tiles
+            CloseTilePanelOnly();
         }
         else
         {
-            Debug.LogWarning($"[ShiftingWorldUI] No se pudo colocar el tile: {selectedTileLayout.name}. Intentá otro exit.");
-            // seguir en modo colocación
+            Debug.LogWarning($"[ShiftingWorldUI] No se pudo colocar el tile: {selectedTileLayout.name}. Probá otro exit.");
+            // seguís en modo colocación, pero con botones y labels actualizados
         }
     }
+
 
     private int FindExitIndexByLabel(string label)
     {
@@ -428,9 +530,12 @@ public class ShiftingWorldUI : MonoBehaviour
 
     private void ClearExitButtons()
     {
-        foreach (var button in exitButtons)
-            if (button) Destroy(button.gameObject);
-        exitButtons.Clear();
+        if (!exitButtonsCanvas) return;
+        for (int i = exitButtonsCanvas.transform.childCount - 1; i >= 0; i--)
+            Destroy(exitButtonsCanvas.transform.GetChild(i).gameObject);
+
+        exitButtons.Clear();   // si aún la usás
+        exitBtnInfo.Clear();
     }
 
     private void HideExitButtons()
@@ -438,6 +543,7 @@ public class ShiftingWorldUI : MonoBehaviour
         if (exitButtonsCanvas) exitButtonsCanvas.gameObject.SetActive(false);
         ClearExitButtons();
     }
+
 
     private string GetTurretDisplayName(TurretDataSO turret)
     {

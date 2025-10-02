@@ -54,6 +54,26 @@ public class TileOrientationCalculator : MonoBehaviour
                               Mathf.RoundToInt(Mathf.Clamp(p.y, -1, 1)));
     }
 
+    public static Vector2Int ApplyOrientationToDir(Vector2Int d, int rotSteps, bool flip)
+    {
+        Vector2 p = new Vector2(d.x, d.y);
+        if (flip) p.x = -p.x;       
+
+        // rotSteps * 90° horario: (x, y) -> (y, -x)
+        for (int i = 0; i < rotSteps; i++)
+        {
+            float x = p.x;
+            p.x = p.y;
+            p.y = -x;
+        }
+
+        return new Vector2Int(
+            Mathf.RoundToInt(Mathf.Clamp(p.x, -1, 1)),
+            Mathf.RoundToInt(Mathf.Clamp(p.y, -1, 1))
+        );
+    }
+
+
     public static Vector3 CellToWorldLocal(Vector2Int c, TileLayout layout, int rotSteps, bool flip)
     {
         Vector2Int oc = ApplyOrientationToCell(c, layout, rotSteps, flip);

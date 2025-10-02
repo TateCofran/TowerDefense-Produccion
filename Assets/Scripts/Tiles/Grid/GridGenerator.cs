@@ -49,6 +49,10 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
     [SerializeField] private bool allowRotations = true;
     [SerializeField] private bool allowFlip = true;
 
+    [Header("Convención eje Y del grid")]
+    [Tooltip("+Z del mundo corresponde al borde y==0 del grid (true). Si tu grid usa y==h-1 como 'arriba', ponelo en false.")]
+    [SerializeField] private bool worldPlusZUsesYZeroEdge = true;
+
     public enum PreviewStatus { Valid, Overlap, WrongEdge }
 
     // Propiedades públicas para acceso de las dependencias
@@ -248,8 +252,7 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         }
 
         TileOrientationCalculator.OrientedSize(initialLayout, rot, out int w, out int h);
-        float W = w * initialLayout.cellSize;
-        float H = h * initialLayout.cellSize;
+        ComputeAABB(worldOrigin, w, h, initialLayout.cellSize, out var aMin, out var aMax);
 
         var placed = new PlacedTile
         {
@@ -258,8 +261,8 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
             rotSteps = rot,
             flipped = flip,
             parent = parent,
-            aabbMin = worldOrigin,
-            aabbMax = worldOrigin + new Vector3(W, 0f, H)
+            aabbMin = aMin,
+            aabbMax = aMax
         };
 
         AddToChain(placed);
@@ -440,7 +443,7 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         if (!nb.HasValue) return previews;
 
         Vector2Int dirOut = (exitCell - nb.Value);
-        dirOut = TileOrientationCalculator.ApplyInverseOrientationToDir(dirOut, tile.rotSteps, tile.flipped);
+        dirOut = TileOrientationCalculator.ApplyOrientationToDir(dirOut, tile.rotSteps, tile.flipped);
         dirOut = ClampToOrtho(dirOut);
 
         Vector3 prevMin = tile.aabbMin;
@@ -467,13 +470,13 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
 
                     bool okBorde = false;
                     if (dirOut == Vector2Int.right) okBorde = (orientedData.entryOriented.x == 0);
-                    if (dirOut == Vector2Int.left) okBorde = (orientedData.entryOriented.x == orientedData.w - 1);
-                    if (dirOut == Vector2Int.up) okBorde = (orientedData.entryOriented.y == 0);
-                    if (dirOut == Vector2Int.down) okBorde = (orientedData.entryOriented.y == orientedData.h - 1);
+                    else if (dirOut == Vector2Int.left) okBorde = (orientedData.entryOriented.x == orientedData.w - 1);
+                    else if (dirOut == Vector2Int.up) okBorde = (orientedData.entryOriented.y == (worldPlusZUsesYZeroEdge ? 0 : orientedData.h - 1));
+                    else okBorde = (orientedData.entryOriented.y == (worldPlusZUsesYZeroEdge ? orientedData.h - 1 : 0));
+
 
                     Vector3 newOrigin = ComputeNewOrigin(candidate, rot, orientedData.entryOriented, dirOut, prevMin, prevMax, prevExitWorld);
-                    Vector3 nMin = newOrigin;
-                    Vector3 nMax = newOrigin + new Vector3(width, 0f, height);
+                    ComputeAABB(newOrigin, orientedData.w, orientedData.h, candidate.cellSize, out var nMin, out var nMax);
                     bool noOverlap = !spatialPartitioner.OverlapsAnyOptimized(nMin, nMax);
 
                     var status = okBorde
@@ -593,7 +596,7 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
             return false;
 
         Vector2Int dirOut = (exitCell - nb.Value);
-        dirOut = TileOrientationCalculator.ApplyInverseOrientationToDir(dirOut, tile.rotSteps, tile.flipped);
+        dirOut = TileOrientationCalculator.ApplyOrientationToDir(dirOut, tile.rotSteps, tile.flipped);
         dirOut = ClampToOrtho(dirOut);
 
         Vector3 prevMin = tile.aabbMin;
@@ -608,15 +611,11 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
             if (!candidate.IsInside(entry) || !candidate.IsPath(entry)) continue;
 
             var orientedData = orientationCalculator.GetOrientedData(candidate, rot, flip);
-            float width = orientedData.w * candidate.cellSize;
-            float height = orientedData.h * candidate.cellSize;
-
+           
             Vector3 newOrigin = ComputeNewOrigin(candidate, rot, orientedData.entryOriented, dirOut, prevMin, prevMax, prevExitWorld);
-            Vector3 nMin = newOrigin;
-            Vector3 nMax = newOrigin + new Vector3(width, 0f, height);
+            ComputeAABB(newOrigin, orientedData.w, orientedData.h, candidate.cellSize, out var nMin, out var nMax);
 
-            if (spatialPartitioner.OverlapsAnyOptimized(nMin, nMax))
-                continue;
+            if (spatialPartitioner.OverlapsAnyOptimized(nMin, nMax)) continue;
 
             var parent = CreateTileParent(tilesRoot, tileGroupBaseName + _chainCount);
             int count = InstantiateLayout(candidate, newOrigin, rot, flip, parent);
@@ -664,9 +663,9 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
 
                     bool okBorde = false;
                     if (dirOut == Vector2Int.right) okBorde = (orientedData.entryOriented.x == 0);
-                    if (dirOut == Vector2Int.left) okBorde = (orientedData.entryOriented.x == orientedData.w - 1);
-                    if (dirOut == Vector2Int.up) okBorde = (orientedData.entryOriented.y == 0);
-                    if (dirOut == Vector2Int.down) okBorde = (orientedData.entryOriented.y == orientedData.h - 1);
+                    else if (dirOut == Vector2Int.left) okBorde = (orientedData.entryOriented.x == orientedData.w - 1);
+                    else if (dirOut == Vector2Int.up) okBorde = (orientedData.entryOriented.y == (worldPlusZUsesYZeroEdge ? 0 : orientedData.h - 1));
+                    else okBorde = (orientedData.entryOriented.y == (worldPlusZUsesYZeroEdge ? orientedData.h - 1 : 0));
 
                     if (okBorde)
                     {
@@ -890,47 +889,46 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
     }
 
     private Vector3 ComputeNewOrigin(
-        TileLayout candidate,
-        int rotSteps,
-        Vector2Int entryOriented,
-        Vector2Int dirOut,
-        Vector3 prevMin, Vector3 prevMax,
-        Vector3 prevExitWorld)
+     TileLayout candidate,
+     int rotSteps,
+     Vector2Int entryOriented,   // entry ya orientada (la que te da GetOrientedData)
+     Vector2Int dirOut,          // dirección de salida en mundo (cardinal)
+     Vector3 prevMin, Vector3 prevMax,   // no usados en esta versión
+     Vector3 prevExitWorld)
     {
-        TileOrientationCalculator.OrientedSize(candidate, rotSteps, out int w, out int h);
-        float width = w * candidate.cellSize;
-        float height = h * candidate.cellSize;
+        // Tamaño de celda del candidato
+        float cs = candidate.cellSize;
 
-        Vector3 newOrigin = Vector3.zero;
+        // Posición LOCAL (desde origin del tile) del centro de la celda 'entry' ya orientada
+        // Como entryOriented está en coords orientadas, basta multiplicar por cellSize
+        Vector3 entryLocal = new Vector3(entryOriented.x * cs, 0f, entryOriented.y * cs);
 
-        if (dirOut == Vector2Int.right)
-        {
-            newOrigin.x = prevMax.x + tileGap;
-            float entryLocalZ = entryOriented.y * candidate.cellSize;
-            newOrigin.z = prevExitWorld.z - entryLocalZ;
-        }
-        else if (dirOut == Vector2Int.left)
-        {
-            newOrigin.x = (prevMin.x - tileGap) - width;
-            float entryLocalZ = entryOriented.y * candidate.cellSize;
-            newOrigin.z = prevExitWorld.z - entryLocalZ;
-        }
-        else if (dirOut == Vector2Int.up)
-        {
-            newOrigin.z = prevMax.z + tileGap;
-            float entryLocalX = entryOriented.x * candidate.cellSize;
-            newOrigin.x = prevExitWorld.x - entryLocalX;
-        }
-        else // down
-        {
-            newOrigin.z = (prevMin.z - tileGap) - height;
-            float entryLocalX = entryOriented.x * candidate.cellSize;
-            newOrigin.x = prevExitWorld.x - entryLocalX;
-        }
+        // Desplazamiento desde el EXIT anterior hacia afuera: 1 celda + gap
+        Vector3 outWorld = new Vector3(dirOut.x, 0f, dirOut.y) * (cs + tileGap);
 
+        // Queremos que el centro de 'entry' caiga exactamente en prevExitWorld + outWorld
+        Vector3 newOrigin = (prevExitWorld + outWorld) - entryLocal;
+
+        // Offset extra (si lo usás para fine-tune)
         newOrigin += extraTileOffset;
+
         return newOrigin;
     }
+
+    private void ComputeAABB(Vector3 origin, int w, int h, float cellSize, out Vector3 min, out Vector3 max)
+    {
+        // origin es el CENTRO de la celda (0,0).
+        // El AABB debe empezar media celda antes y terminar media celda después.
+        Vector3 half = new Vector3(cellSize * 0.5f, 0f, cellSize * 0.5f);
+        Vector3 size = new Vector3(w * cellSize, 0f, h * cellSize);
+
+        min = origin - half;
+        max = origin - half + size;
+
+        // (opcional) margen para evitar falsos positivos por flotantes
+        // float eps = 1e-4f; max -= new Vector3(eps, 0f, eps);
+    }
+
 
     private static Vector2Int? FindSinglePathNeighbor(TileLayout layout, Vector2Int cell)
     {
@@ -1047,7 +1045,7 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         if (!nb.HasValue) return false;
 
         Vector2Int dirOut = (exitCell - nb.Value);
-        dirOut = TileOrientationCalculator.ApplyInverseOrientationToDir(dirOut, tile.rotSteps, tile.flipped);
+        dirOut = TileOrientationCalculator.ApplyOrientationToDir(dirOut, tile.rotSteps, tile.flipped);
         dirOut = ClampToOrtho(dirOut);
 
         Vector3 prevMin = tile.aabbMin;
@@ -1069,19 +1067,17 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
                     if (!candidate.IsInside(entry) || !candidate.IsPath(entry)) continue;
 
                     var orientedData = orientationCalculator.GetOrientedData(candidate, rot, flip);
-                    float width = orientedData.w * candidate.cellSize;
-                    float height = orientedData.h * candidate.cellSize;
+                   
 
                     bool okBorde = false;
                     if (dirOut == Vector2Int.right) okBorde = (orientedData.entryOriented.x == 0);
-                    if (dirOut == Vector2Int.left) okBorde = (orientedData.entryOriented.x == orientedData.w - 1);
-                    if (dirOut == Vector2Int.up) okBorde = (orientedData.entryOriented.y == 0);
-                    if (dirOut == Vector2Int.down) okBorde = (orientedData.entryOriented.y == orientedData.h - 1);
+                    else if (dirOut == Vector2Int.left) okBorde = (orientedData.entryOriented.x == orientedData.w - 1);
+                    else if (dirOut == Vector2Int.up) okBorde = (orientedData.entryOriented.y == (worldPlusZUsesYZeroEdge ? 0 : orientedData.h - 1));
+                    else okBorde = (orientedData.entryOriented.y == (worldPlusZUsesYZeroEdge ? orientedData.h - 1 : 0));
                     if (!okBorde) continue;
 
                     Vector3 newOrigin = ComputeNewOrigin(candidate, rot, orientedData.entryOriented, dirOut, prevMin, prevMax, prevExitWorld);
-                    Vector3 nMin = newOrigin;
-                    Vector3 nMax = newOrigin + new Vector3(width, 0f, height);
+                    ComputeAABB(newOrigin, orientedData.w, orientedData.h, candidate.cellSize, out var nMin, out var nMax);
 
                     if (!spatialPartitioner.OverlapsAnyOptimized(nMin, nMax))
                         return true;

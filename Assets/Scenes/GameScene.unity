@@ -941,6 +941,9 @@ MonoBehaviour:
   normalWorldFill: {fileID: 1577850568}
   otherWorldFill: {fileID: 1431336442}
   worldToggleCooldownFill: {fileID: 1518305772}
+  buttonWorldYOffset: 1
+  buttonScreenYOffset: 24
+  buttonPivotBottom: 1
 --- !u!1 &516222032
 GameObject:
   m_ObjectHideFlags: 0
@@ -6703,6 +6706,7 @@ MonoBehaviour:
   extraTileOffset: {x: 0, y: 0, z: 0}
   allowRotations: 1
   allowFlip: 1
+  worldPlusZUsesYZeroEdge: 1
   selectedExitIndex: 0
   minDistanceToCore: 0
   excludeCoreNeighbors: 1
