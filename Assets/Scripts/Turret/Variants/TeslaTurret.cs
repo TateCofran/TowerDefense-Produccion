@@ -22,10 +22,33 @@ public class TeslaTurret : MonoBehaviour, IShootingBehavior
 
     private ITurretStats stats;
 
+    [Header("Impact Sound")]
+    [SerializeField] private AudioClip impactClip; // suena cuando se adquiere target (y opcional en cada tick si vfxOnEachTick)
+    [Range(0f, 1f)]
+    [SerializeField] private float impactVolume = 1f;
+    [SerializeField] private bool ensureAudioSource = true;
+
+    private AudioSource _audioSource;
+
     private void Awake()
     {
         stats = GetComponent<ITurretStats>();
         if (!firePoint) Debug.LogWarning("[TeslaTurret] Falta asignar firePoint.");
+
+        if (ensureAudioSource)
+        {
+            _audioSource = GetComponent<AudioSource>();
+            if (_audioSource == null)
+            {
+                _audioSource = gameObject.AddComponent<AudioSource>();
+                _audioSource.playOnAwake = false;
+                _audioSource.spatialBlend = 1f;
+                _audioSource.rolloffMode = AudioRolloffMode.Linear;
+                _audioSource.minDistance = 1f;
+                _audioSource.maxDistance = 20f;
+                _audioSource.dopplerLevel = 0f;
+            }
+        }
     }
 
     public void Shoot(Transform firePointIgnored, Transform targetIgnored, ITurretStats statsParam)
@@ -93,6 +116,8 @@ public class TeslaTurret : MonoBehaviour, IShootingBehavior
 
         GameObject fx = Instantiate(impactVfxPrefab, pos, rot, parent);
         if (impactVfxLifetime > 0f) Destroy(fx, impactVfxLifetime);
+        _audioSource.PlayOneShot(impactClip, impactVolume);
+
     }
 
     private static void ApplyDamage(Transform hitTf, int damage)

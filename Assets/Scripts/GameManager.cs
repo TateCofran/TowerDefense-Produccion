@@ -1,80 +1,128 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
 
+    [Header("UI Pausa")]
     [SerializeField] private GameObject pausePanel;
     private bool isPaused = false;
 
-    public float timePlayed { get; private set; } // público para que lo use ResultScene
+    [Header("Victoria")]
+    [SerializeField] private string resultScene = "ResultScene";
+    [SerializeField] private int wavesToWin = 10;
+    private int wavesCompleted = 0;
 
-    private void Update()
+    [Header("Escenas comunes")]
+    [SerializeField] private string mainMenuScene = "Menu";
+    [SerializeField] private string gameplayScene = "GameScene";
+
+    public float timePlayed { get; private set; }
+    public bool PlayerHasWon { get; private set; } 
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void AutoBootstrap()
     {
-        // No sumar tiempo si está pausado
-        if (!isPaused)
+        if (Instance == null)
         {
-            timePlayed += Time.deltaTime;
-
-        }
-        // Pausa y reanuda con ESC
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            if (isPaused)
-            {
-                ResumeGame();
-            }
-            else
-            {
-                PauseGame();
-            }
+            var go = new GameObject("[GameManager]");
+            go.AddComponent<GameManager>();
         }
     }
     private void Awake()
     {
         if (Instance == null)
+        {
             Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
         else
+        {
             Destroy(gameObject);
+        }
     }
+
+    private void Update()
+    {
+        if (!isPaused)
+            timePlayed += Time.deltaTime;
+
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            if (isPaused) ResumeGame();
+            else PauseGame();
+        }
+    }
+
+    #region Pausa
     public void PauseGame()
     {
         if (isPaused) return;
         isPaused = true;
         Time.timeScale = 0f;
-        if (pausePanel != null)
-            pausePanel.SetActive(true);
+        if (pausePanel != null) pausePanel.SetActive(true);
         AudioListener.pause = true;
     }
+
     public void ResumeGame()
     {
         if (!isPaused) return;
         isPaused = false;
         Time.timeScale = 1f;
-
-        if (pausePanel != null)
-        {
-            pausePanel.SetActive(false);
-        }
+        if (pausePanel != null) pausePanel.SetActive(false);
         AudioListener.pause = false;
     }
+    #endregion
+
+    #region Flujo de partida
+    public void NotifyWaveCompleted()
+    {
+        wavesCompleted++;
+        if (wavesCompleted >= wavesToWin)
+            WinGame();
+    }
+
     public void GameOver()
     {
-        //int wave = WaveManager.Instance != null ? WaveManager.Instance.GetCurrentWave() : 0;
-
-        SceneManager.LoadScene("ResultScene");
+        PlayerHasWon = false;  // derrota
+        EndRun();
     }
-    //Eliminar Funcion de ResultSceneController más adelante
+
+    private void WinGame()
+    {
+        PlayerHasWon = true;   // victoria
+        EndRun();
+    }
+
+    private void EndRun()
+    {
+        Time.timeScale = 1f;
+        AudioListener.pause = false;
+        SceneManager.LoadScene(resultScene);
+    }
+    #endregion
+
+    #region Botones ResultScene
     public void OnMainMenuButton()
     {
-        SceneManager.LoadScene("MainMenu");
+        ResetRunState(false);
+        SceneManager.LoadScene(mainMenuScene);
     }
 
-    //Eliminar Funcion de ResultSceneController más adelante
     public void OnPlayAgainButton()
     {
-        SceneManager.LoadScene("GameScene");
+        ResetRunState(false);
+        SceneManager.LoadScene(gameplayScene);
+    }
+    #endregion
+
+    private void ResetRunState(bool keepTime)
+    {
+        wavesCompleted = 0;
+        if (!keepTime) timePlayed = 0f;
+        isPaused = false;
+        Time.timeScale = 1f;
+        AudioListener.pause = false;
     }
 }

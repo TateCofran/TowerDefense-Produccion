@@ -19,6 +19,31 @@ public class BasicRaycastShooter : MonoBehaviour, IShootingBehavior
     [Tooltip("Si tu prefab no se autodestruye, lo limpiamos a los X seg.")]
     [SerializeField] private float impactVfxLifetime = 1.5f;
 
+    [Header("Impact Sound")]
+    [SerializeField] private AudioClip impactClip; // suena cuando se adquiere target (y opcional en cada tick si vfxOnEachTick)
+    [Range(0f, 1f)]
+    [SerializeField] private float impactVolume = 1f;
+    [SerializeField] private bool ensureAudioSource = true;
+
+    private AudioSource _audioSource;
+    private void Awake()
+    {
+        if (ensureAudioSource)
+        {
+            _audioSource = GetComponent<AudioSource>();
+            if (_audioSource == null)
+            {
+                _audioSource = gameObject.AddComponent<AudioSource>();
+                _audioSource.playOnAwake = false;
+                _audioSource.spatialBlend = 1f; // 3D sound
+                _audioSource.rolloffMode = AudioRolloffMode.Linear;
+                _audioSource.minDistance = 1f;
+                _audioSource.maxDistance = 20f;
+                _audioSource.dopplerLevel = 0f;
+            }
+        }
+    }
+
     public void Shoot(Transform firePoint, Transform target, ITurretStats stats)
     {
         if (!firePoint || !target || stats == null) return;
@@ -63,6 +88,8 @@ public class BasicRaycastShooter : MonoBehaviour, IShootingBehavior
         Transform parent = parentVfxToHit ? hit.collider.transform : null;
         GameObject fx = Instantiate(impactVfxPrefab, pos, rot, parent);
         if (impactVfxLifetime > 0f) Destroy(fx, impactVfxLifetime);
+
+        _audioSource.PlayOneShot(impactClip, impactVolume);
     }
 
     private static bool TryApplyDamage(Transform hitTf, int damage)

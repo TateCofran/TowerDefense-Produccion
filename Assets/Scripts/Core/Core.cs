@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 public class Core : MonoBehaviour
 {
@@ -9,7 +8,6 @@ public class Core : MonoBehaviour
     private void Start()
     {
         currentHealth = maxHealth;
-        //Actualizamos la UI al inicio
         UIController.Instance.UpdateCoreHealth(currentHealth, maxHealth);
     }
 
@@ -18,15 +16,14 @@ public class Core : MonoBehaviour
         currentHealth -= amount;
         if (currentHealth < 0) currentHealth = 0;
 
-        // Actualizamos la UI cada vez que se daña el núcleo
         UIController.Instance.UpdateCoreHealth(currentHealth, maxHealth);
 
         if (currentHealth <= 0)
         {
             Debug.Log("Core destroyed!");
-            // Lógica de game over
-            SceneManager.LoadScene("Menu");
-
+            // Notificamos al GameManager
+            if (GameManager.Instance != null)
+                GameManager.Instance.GameOver();
         }
     }
 }

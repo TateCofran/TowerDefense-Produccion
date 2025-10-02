@@ -31,11 +31,34 @@ public class FireTurret : MonoBehaviour, IShootingBehavior
     private Enemy burningTarget;
     private float totalDamageApplied = 0f;
 
+    [Header("Impact Sound")]
+    [SerializeField] private AudioClip impactClip; // suena cuando se adquiere target (y opcional en cada tick si vfxOnEachTick)
+    [Range(0f, 1f)]
+    [SerializeField] private float impactVolume = 1f;
+    [SerializeField] private bool ensureAudioSource = true;
+
+    private AudioSource _audioSource;
+
     private void Awake()
     {
         stats = GetComponent<ITurretStats>();
         if (!firePoint) Debug.LogWarning("[FireTurret] Falta asignar firePoint.");
         tickCountdown = 0f;
+
+        if (ensureAudioSource)
+        {
+            _audioSource = GetComponent<AudioSource>();
+            if (_audioSource == null)
+            {
+                _audioSource = gameObject.AddComponent<AudioSource>();
+                _audioSource.playOnAwake = false;
+                _audioSource.spatialBlend = 1f;
+                _audioSource.rolloffMode = AudioRolloffMode.Linear;
+                _audioSource.minDistance = 1f;
+                _audioSource.maxDistance = 20f;
+                _audioSource.dopplerLevel = 0f;
+            }
+        }
     }
 
     private void Update()
@@ -138,6 +161,7 @@ public class FireTurret : MonoBehaviour, IShootingBehavior
                 Vector3 pos = burningTarget.transform.position + Vector3.up * 0.35f;
                 GameObject fx = Instantiate(impactVfxPrefab, pos, Quaternion.identity, parentVfxToHit ? burningTarget.transform : null);
                 if (impactVfxLifetime > 0f) Destroy(fx, impactVfxLifetime);
+
             }
         }
         else
@@ -158,6 +182,8 @@ public class FireTurret : MonoBehaviour, IShootingBehavior
 
         GameObject fx = Instantiate(impactVfxPrefab, pos, rot, parent);
         if (impactVfxLifetime > 0f) Destroy(fx, impactVfxLifetime);
+        _audioSource.PlayOneShot(impactClip, impactVolume);
+
     }
 
     private static bool TryGetEnemy(Transform t, out Enemy enemy)

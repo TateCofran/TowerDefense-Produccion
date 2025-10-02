@@ -1,5 +1,4 @@
-﻿// RaycasterHoverClick.cs
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 
@@ -14,7 +13,7 @@ public class RaycasterHoverClick : MonoBehaviour
     public float maxDistance = 250f;
 
     [Header("Fallback")]
-    [Tooltip("Si el objeto clickeado no tiene ClickToScene, cargar esta escena (opcional).")]
+    [Tooltip("Si el objeto clickeado no tiene ClickToScene ni ClickToPanel, cargar esta escena (opcional).")]
     public string defaultSceneToLoad;
 
     private OutlineOnLook _current;
@@ -50,18 +49,30 @@ public class RaycasterHoverClick : MonoBehaviour
                 ClearCurrent();
             }
 
-            // ----- CLICK / LOAD SCENE -----
+            // ----- CLICK -----
             if (Input.GetMouseButtonDown(0))
             {
+                // 1) Intentar abrir PANEL
+                if (hit.transform.TryGetComponent<ClickToPanel>(out var clickToPanel) ||
+                    hit.transform.GetComponentInParent<ClickToPanel>() is ClickToPanel clickToPanelParent && (clickToPanel = clickToPanelParent))
+                {
+                    clickToPanel.OpenPanel();
+                    return; // listo, no seguimos a escena
+                }
+
+                // 2) Si no hay panel, intentar cargar ESCENA
                 if (hit.transform.TryGetComponent<ClickToScene>(out var clickToScene) ||
                     hit.transform.GetComponentInParent<ClickToScene>() is ClickToScene clickParent && (clickToScene = clickParent))
                 {
                     if (!string.IsNullOrWhiteSpace(clickToScene.sceneName))
+                    {
                         SceneManager.LoadScene(clickToScene.sceneName);
-                    else if (!string.IsNullOrWhiteSpace(defaultSceneToLoad))
-                        SceneManager.LoadScene(defaultSceneToLoad);
+                        return;
+                    }
                 }
-                else if (!string.IsNullOrWhiteSpace(defaultSceneToLoad))
+
+                // 3) Fallback opcional
+                if (!string.IsNullOrWhiteSpace(defaultSceneToLoad))
                 {
                     SceneManager.LoadScene(defaultSceneToLoad);
                 }
