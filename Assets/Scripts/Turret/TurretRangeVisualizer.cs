@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using System.Collections;
 
 public class TurretRangeVisualizer : MonoBehaviour, IRangeDisplay
 {
@@ -6,24 +7,28 @@ public class TurretRangeVisualizer : MonoBehaviour, IRangeDisplay
     [SerializeField] private LineRenderer lineRenderer;
 
     [Header("Calidad del círculo")]
-    [Tooltip("Longitud aproximada de cada cuerda del polígono. Radios grandes ⇒ más segmentos automáticamente.")]
-    [SerializeField] private float targetChordLength = 0.15f; // menor = más segmentos
+    [SerializeField] private float targetChordLength = 0.15f;
     [SerializeField] private int minSegments = 24;
     [SerializeField] private int maxSegments = 256;
 
     [Header("Altura del círculo")]
     [SerializeField] private float yOffset = 0.02f;
 
-    [Header("Actualización automática")]
-    [Tooltip("Si está activo, volverá a dibujar si SetRadius recibe el mismo valor (por ejemplo, tras reactivar).")]
-    [SerializeField] private bool alwaysRedrawOnShow = true;
+    [Header("Animación al mostrar")]
+    [SerializeField] private float showDuration = 0.35f;
+    [SerializeField] private float widthMultiplierTarget = 0.1f;
 
     private float _currentRadius = -1f;
     private int _currentSegments = -1;
 
-    // NUEVO: para seguir al centro aunque no cambie el radio
     private Vector3 _lastCenter;
     private bool _visible;
+
+    private bool _animating;
+    private Coroutine _animRoutine;
+
+    // para que la animación ocurra una sola vez
+    private bool _playedOnce;
 
     private void Awake()
     {
@@ -36,16 +41,17 @@ public class TurretRangeVisualizer : MonoBehaviour, IRangeDisplay
 
         lineRenderer.useWorldSpace = true;
         lineRenderer.loop = true;
+        lineRenderer.enabled = false;
     }
 
     private void LateUpdate()
     {
         if (!_visible || !lineRenderer) return;
+        if (_animating) return;
 
         Vector3 center = transform.position;
         if ((center - _lastCenter).sqrMagnitude > 0.0000001f)
         {
-            // si se movió el objeto, redibujo con el mismo radio/segmentos
             RedrawCircleWorldSpace();
         }
     }
@@ -55,8 +61,17 @@ public class TurretRangeVisualizer : MonoBehaviour, IRangeDisplay
     {
         if (!lineRenderer) return;
         _visible = true;
-        SetRadius(radius, forceRedraw: alwaysRedrawOnShow);
+
+        SetRadius(radius, true);
         lineRenderer.enabled = true;
+
+        // 👇 Animar solo la primera vez que se coloca
+        if (!_playedOnce)
+        {
+            _playedOnce = true;
+            if (_animRoutine != null) StopCoroutine(_animRoutine);
+            _animRoutine = StartCoroutine(PlayShowAnimation());
+        }
     }
 
     public void Hide()
@@ -70,7 +85,6 @@ public class TurretRangeVisualizer : MonoBehaviour, IRangeDisplay
         return lineRenderer && lineRenderer.enabled;
     }
 
-    /// <summary> Llamá esto cuando cambie el rango de la torreta. </summary>
     public void SetRadius(float radius, bool forceRedraw = false)
     {
         radius = Mathf.Max(0f, radius);
@@ -101,7 +115,7 @@ public class TurretRangeVisualizer : MonoBehaviour, IRangeDisplay
         lineRenderer.positionCount = _currentSegments + 1;
 
         Vector3 center = transform.position;
-        _lastCenter = center; // <- NUEVO: actualizamos el cache del centro
+        _lastCenter = center;
 
         float angleStep = 360f / _currentSegments;
         for (int i = 0; i <= _currentSegments; i++)
@@ -113,36 +127,34 @@ public class TurretRangeVisualizer : MonoBehaviour, IRangeDisplay
         }
     }
 
-    // Helpers opcionales
-    public void SetColor(Color color)
+    // ========= Anim solo 1 vez =========
+    private IEnumerator PlayShowAnimation()
     {
-        if (!lineRenderer) return;
-        if (lineRenderer.colorGradient != null)
-        {
-            var g = new Gradient();
-            g.SetKeys(
-                new GradientColorKey[] { new GradientColorKey(color, 0f), new GradientColorKey(color, 1f) },
-                new GradientAlphaKey[] { new GradientAlphaKey(color.a, 0f), new GradientAlphaKey(color.a, 1f) }
-            );
-            lineRenderer.colorGradient = g;
-        }
-        else
-        {
-            lineRenderer.startColor = lineRenderer.endColor = color;
-        }
-    }
+        if (!lineRenderer || _currentSegments < 3)
+            yield break;
 
-#if UNITY_EDITOR
-    private void OnValidate()
-    {
-        if (minSegments < 3) minSegments = 3;
-        if (maxSegments < minSegments) maxSegments = minSegments;
-        if (targetChordLength <= 0f) targetChordLength = 0.01f;
+        _animating = true;
 
-        if (_currentRadius > 0f && lineRenderer)
+        float dur = Mathf.Max(0.01f, showDuration);
+        float t = 0f;
+
+        // ancho inicial en 0
+        lineRenderer.widthMultiplier = 0f;
+
+        while (t < 1f)
         {
-            SetRadius(_currentRadius, forceRedraw: true);
+            t += Time.deltaTime / dur;
+            float eased = 1f - Mathf.Pow(1f - Mathf.Clamp01(t), 3f);
+
+            // crecer grosor
+            lineRenderer.widthMultiplier = Mathf.Lerp(0f, widthMultiplierTarget, eased);
+
+            yield return null;
         }
+
+        lineRenderer.widthMultiplier = widthMultiplierTarget;
+
+        _animating = false;
+        _animRoutine = null;
     }
-#endif
 }

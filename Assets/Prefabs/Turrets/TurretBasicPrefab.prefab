@@ -502,11 +502,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   lineRenderer: {fileID: 5778865115430028793}
-  targetChordLength: 0.15
+  targetChordLength: 0.011
   minSegments: 24
   maxSegments: 256
   yOffset: 0.02
-  alwaysRedrawOnShow: 1
+  showDuration: 0.35
+  widthMultiplierTarget: 0.1
 --- !u!114 &-7384505950414907851
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -521,6 +522,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   stats: {fileID: -4348509830824525796}
   showRangeOnStart: 1
+  isPlaced: 0
 --- !u!114 &1531119936590128973
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -543,3 +545,6 @@ MonoBehaviour:
   impactVfxOffsetAlongNormal: 0
   parentVfxToHit: 1
   impactVfxLifetime: 1.5
+  impactClip: {fileID: 8300000, guid: 818985889b4e780498786c745ee25b6f, type: 3}
+  impactVolume: 0.304
+  ensureAudioSource: 1
