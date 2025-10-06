@@ -173,4 +173,8 @@ public class ShiftingWorldMechanic : MonoBehaviour
     // ==== Helpers para la UI (si querés exponer ints también) ====
     public int GetNormalInt() => Mathf.Min(100, Mathf.FloorToInt(normalProgress));
     public int GetOtherInt() => Mathf.Min(100, Mathf.FloorToInt(otherProgress));
+    public ShiftingWorldMechanic.World GetCurrentWorld()
+    {
+        return currentWorld; // asumiendo que tu campo se llama 'currentWorld'
+    }
 }
