@@ -144,6 +144,7 @@ public class ShiftingWorldUI : MonoBehaviour
         BuildNormalOptions();
 
         if (tilePanelRoot) tilePanelRoot.SetActive(true);
+        
         // ¡NO ocultamos turretPanelRoot!
         HideExitButtons(); // limpio por si venimos de un intento previo
     }
@@ -519,6 +520,7 @@ public class ShiftingWorldUI : MonoBehaviour
         TMP_Text tmp = (labels != null && index < labels.Length) ? labels[index] : null;
         if (tmp == null) tmp = btn.GetComponentInChildren<TMP_Text>(true);
         if (tmp) tmp.text = label;
+
     }
 
     private void HideAll()

@@ -22,14 +22,15 @@ public class GameManager : MonoBehaviour
     public bool PlayerHasWon { get; private set; } 
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    private static void AutoBootstrap()
+    /*private static void AutoBootstrap()
     {
         if (Instance == null)
         {
             var go = new GameObject("[GameManager]");
             go.AddComponent<GameManager>();
         }
-    }
+    }*/
+
     private void Awake()
     {
         if (Instance == null)
@@ -62,7 +63,7 @@ public class GameManager : MonoBehaviour
         isPaused = true;
         Time.timeScale = 0f;
         if (pausePanel != null) pausePanel.SetActive(true);
-        AudioListener.pause = true;
+        AudioListener.pause = true;    
     }
 
     public void ResumeGame()
@@ -126,3 +127,4 @@ public class GameManager : MonoBehaviour
         AudioListener.pause = false;
     }
 }
+
