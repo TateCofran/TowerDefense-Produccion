@@ -1404,7 +1404,6 @@ RectTransform:
   - {fileID: 1689459306}
   - {fileID: 980201744}
   - {fileID: 752477519}
-  - {fileID: 1507230854}
   - {fileID: 1377175385}
   - {fileID: 1901685422}
   - {fileID: 1626517664}
@@ -3460,7 +3459,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 03a646d4dd5a1634fa996ae3da50db8c, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 7387e442b052b9e48b71bdfec5690fa3, type: 3}
   m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
