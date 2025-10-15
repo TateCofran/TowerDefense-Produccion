@@ -35,7 +35,7 @@ public class UIAudioManager : MonoBehaviour
             {
                 btn.onClick.AddListener(PlayClickSound);
                 registeredButtons.Add(btn);
-                Debug.Log("Registrado botón: " + btn.name);
+                //Debug.Log("Registrado botón: " + btn.name);
             }
             else
             {

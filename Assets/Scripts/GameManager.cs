@@ -28,6 +28,8 @@ public class GameManager : MonoBehaviour
     public bool PlayerHasWon { get; private set; }
     public int wavesCompleted { get; private set; }
     public int totalEnemiesKilled { get; private set; }
+    public int totalBlueEssences { get; private set; }
+    public int totalRedEssences { get; private set; }
 
     private bool subscribedToWave = false;
 
@@ -222,9 +224,16 @@ public class GameManager : MonoBehaviour
         if (WaveManager.Instance != null)
             totalEnemiesKilled = WaveManager.Instance.GetTotalEnemiesKilled();
 
-        Time.timeScale = 1f;
-        AudioListener.pause = false;
-        SceneManager.LoadScene(resultScene);
+        var essences = FindObjectOfType<WorldSwitchPoints>();
+        if (essences != null)
+        {
+            totalBlueEssences = essences.TotalBlue;
+            totalRedEssences = essences.TotalRed;
+
+            Time.timeScale = 1f;
+            AudioListener.pause = false;
+            SceneManager.LoadScene(resultScene);
+        }
     }
     #endregion
 
@@ -232,12 +241,21 @@ public class GameManager : MonoBehaviour
     public void OnMainMenuButton()
     {
         ResetRunState(false);
+        WaveManager.Instance?.ResetWaves();
         SceneManager.LoadScene(mainMenuScene);
     }
 
     public void OnPlayAgainButton()
     {
         ResetRunState(false);
+        WaveManager.Instance?.ResetWaves();
+        var essences = FindObjectOfType<WorldSwitchPoints>();
+        if (essences != null)
+        {
+            essences.AddBlueEssence(-essences.TotalBlue); //poner a 0
+            essences.AddRedEssence(-essences.TotalRed);   //poner a 0
+        }
+
         SceneManager.LoadScene(gameplayScene);
     }
     #endregion
@@ -249,6 +267,7 @@ public class GameManager : MonoBehaviour
         isPaused = false;
         Time.timeScale = 1f;
         AudioListener.pause = false;
+        subscribedToWave = false;
         // No forzamos aquí SetActive(false) porque el panel puede no estar enlazado aún;
         // se alinea en TryBindPausePanel() cuando cargue la escena.
     }

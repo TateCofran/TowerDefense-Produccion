@@ -221,4 +221,17 @@ public class WaveManager : MonoBehaviour
 
     public void SetEnemyCountMultiplier(float value)
         => enemyCountMultiplier = Mathf.Clamp(value, 0.5f, 3f);
+
+    public void ResetWaves()
+    {
+        currentWave = 0;
+        enemiesAlive = 0;
+        enemiesThisWave = 0;
+        waveStarted = false;
+        totalEnemiesKilled = 0; 
+
+        // UI reset
+        UIController.Instance?.UpdateWave(currentWave, maxWaves);
+        UIController.Instance?.UpdateEnemiesRemaining(enemiesAlive);
+    }
 }

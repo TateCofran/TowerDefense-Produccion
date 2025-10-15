@@ -11,6 +11,8 @@ public class ResultSceneController : MonoBehaviour
     [SerializeField] private TMP_Text timeText;       // “Tiempo: mm:ss”
     [SerializeField] private TMP_Text waveText;     //oleada q alcanzó el jugador
     [SerializeField] private TMP_Text totalEnemiesKilledText; //cantidad de enemigos que mato el jugador
+    [SerializeField] private TMP_Text blueEssencesText; //normal
+    [SerializeField] private TMP_Text redEssencesText;  //other
 
     [SerializeField] private Button mainMenuButton;
     [SerializeField] private Button playAgainButton;
@@ -53,6 +55,8 @@ public class ResultSceneController : MonoBehaviour
             if (timeText) timeText.text = "Tiempo: --:--";
             if (waveText) waveText.text = "Waves completed: -";
             if (totalEnemiesKilledText) totalEnemiesKilledText.text = "Total Enemies killed: -";
+            if (blueEssencesText) blueEssencesText.text = $"Normal Essences: -";
+            if (redEssencesText) redEssencesText.text = $"Other World Essences: -";
 
             Debug.LogWarning("[ResultSceneController] GameManager no encontrado. ¿Está marcado como DontDestroyOnLoad?");
             return;
@@ -62,6 +66,8 @@ public class ResultSceneController : MonoBehaviour
         if (timeText) timeText.text = "Tiempo: " + FormatTime(gm.timePlayed);
         if (waveText) waveText.text = "Waves Completed: " + gm.wavesCompleted;
         if (totalEnemiesKilledText) totalEnemiesKilledText.text = "Total Enemies Killed: " + gm.totalEnemiesKilled;
+        if (blueEssencesText) blueEssencesText.text = $"Normal Essences: {gm.totalBlueEssences}";
+        if (redEssencesText) redEssencesText.text = $"Other World Essences: {gm.totalRedEssences}";
     }
 
     private void WireButtons()
