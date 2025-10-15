@@ -1,3 +1,5 @@
+using System.Collections;
+using UnityEditor.SearchService;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -12,17 +14,21 @@ public class GameManager : MonoBehaviour
     [Header("Victoria")]
     [SerializeField] private string resultScene = "ResultScene";
     [SerializeField] private int wavesToWin = 10;
-    private int wavesCompleted = 0;
+    //private int wavesCompleted = 0;
 
     [Header("Escenas comunes")]
     [SerializeField] private string mainMenuScene = "Menu";
     [SerializeField] private string gameplayScene = "GameScene";
 
     public float timePlayed { get; private set; }
-    public bool PlayerHasWon { get; private set; } 
+    public bool PlayerHasWon { get; private set; }
+    public int wavesCompleted { get; private set; }
+    public int totalEnemiesKilled { get; private set; }
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    /*private static void AutoBootstrap()
+    private bool subscribedToWave = false;
+
+    /*[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void AutoBootstrap()
     {
         if (Instance == null)
         {
@@ -42,6 +48,42 @@ public class GameManager : MonoBehaviour
         {
             Destroy(gameObject);
         }
+    }
+    private void OnEnable()
+    {
+        SceneManager.sceneLoaded += HandleSceneLoaded;
+    }
+
+    private void OnDisable()
+    {
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+        if (WaveManager.Instance != null)
+            WaveManager.Instance.OnWaveEnded -= NotifyWaveCompleted;
+    }
+
+    private void HandleSceneLoaded(UnityEngine.SceneManagement.Scene scene, LoadSceneMode mode)
+    {
+        if (scene.name == gameplayScene)
+            ResetRunState(false);
+        StartCoroutine(SubscribeWhenReady());
+    }
+
+    private IEnumerator SubscribeWhenReady()
+    {
+        // Esperar hasta que exista el WaveManager en la escena
+        while (WaveManager.Instance == null)
+            yield return null;
+
+        // Suscribirse al evento una sola vez
+        if (!subscribedToWave)
+        {
+            WaveManager.Instance.OnWaveEnded -= NotifyWaveCompleted;
+            WaveManager.Instance.OnWaveEnded += NotifyWaveCompleted;
+            subscribedToWave = true;
+            Debug.Log("[GameManager] Suscrito correctamente a WaveManager.OnWaveEnded.");
+        }
+            
+           
     }
 
     private void Update()
@@ -98,6 +140,9 @@ public class GameManager : MonoBehaviour
 
     private void EndRun()
     {
+        if (WaveManager.Instance != null)
+            totalEnemiesKilled = WaveManager.Instance.GetTotalEnemiesKilled();
+
         Time.timeScale = 1f;
         AudioListener.pause = false;
         SceneManager.LoadScene(resultScene);

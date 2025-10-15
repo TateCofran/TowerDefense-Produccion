@@ -134,7 +134,9 @@ public class UIController : MonoBehaviour
     public void SetNextWaveButtonVisible(bool visible)
     {
         if (nextWaveButton != null)
+        {
             nextWaveButton.gameObject.SetActive(visible);
+        }      
     }
 
     private void OnNextWaveButtonClicked()

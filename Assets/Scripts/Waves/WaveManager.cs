@@ -39,6 +39,8 @@ public class WaveManager : MonoBehaviour
     private int enemiesAlive = 0;
     private int enemiesThisWave = 0;
     private int consecutiveOtherWorldWaves = 0;
+    private int totalEnemiesKilled = 0; // total de enemigos eliminados durante la partida
+    public int GetTotalEnemiesKilled() => totalEnemiesKilled;
 
     public bool WaveInProgress => enemiesAlive > 0;
     public bool IsFirstWave => isFirstWave;
@@ -141,12 +143,14 @@ public class WaveManager : MonoBehaviour
     public void NotifyEnemyKilled()
     {
         enemiesAlive = Mathf.Max(0, enemiesAlive - 1);
+        totalEnemiesKilled++;
+
         OnEnemiesRemainingChanged?.Invoke(enemiesAlive);
 
         //UI: actualizar enemigos restantes
         UIController.Instance?.UpdateEnemiesRemaining(enemiesAlive);
 
-        if (enemiesAlive <= 0)
+        if (waveStarted && enemiesAlive <= 0)
         {
             Debug.Log($"[WaveManager] Oleada {currentWave} finalizada.");
             waveStarted = false;
