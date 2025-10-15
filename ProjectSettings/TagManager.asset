@@ -10,6 +10,7 @@ TagManager:
   - Path
   - Cell
   - Core
+  - PausePanel
   layers:
   - Default
   - TransparentFX
