@@ -7559,6 +7559,10 @@ PrefabInstance:
       propertyPath: m_CastShadows
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 5116872220624252938, guid: d9e9ba96ea617d647bd5dd1a77aed8b9, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 6c95633699f9a1a4baa4703aaabd89d6, type: 2}
     - target: {fileID: 9223202321623195548, guid: d9e9ba96ea617d647bd5dd1a77aed8b9, type: 3}
       propertyPath: m_Name
       value: Fog
