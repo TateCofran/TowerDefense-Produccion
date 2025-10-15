@@ -52,19 +52,83 @@ public class TileLayout : ScriptableObject
     [Header("Path Modifiers (Overrides por celda)")]
     public List<PathModOverride> perCellOverrides = new List<PathModOverride>();
 
+    // =========================
+    // CACHÉS (runtime)
+    // =========================
+    // Mapa rápido de celdas -> tipo
+    private Dictionary<Vector2Int, TileType> _tileMap;
+    // Conjunto de celdas Path
+    private HashSet<Vector2Int> _pathCells;
+    // Overrides por celda
+    private Dictionary<Vector2Int, PathModifiers> _modsByCell;
 
+    private void OnEnable() => BuildCaches();
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        // Sanitizar tamaños y posiciones para evitar errores sutiles
+        gridWidth = Mathf.Max(1, gridWidth);
+        gridHeight = Mathf.Max(1, gridHeight);
+
+        ClampInside(ref entry);
+        for (int i = 0; i < exits.Count; i++) { var e = exits[i]; ClampInside(ref e); exits[i] = e; }
+        if (coreCell.x >= 0 || coreCell.y >= 0) { ClampInside(ref coreCell); }
+
+        // Rebuild caches cuando se edita el asset
+        BuildCaches();
+    }
+#endif
+
+    private void ClampInside(ref Vector2Int g)
+    {
+        if (g.x < 0 || g.y < 0) return; // valor “no seteado”
+        g.x = Mathf.Clamp(g.x, 0, gridWidth - 1);
+        g.y = Mathf.Clamp(g.y, 0, gridHeight - 1);
+    }
+
+    private void BuildCaches()
+    {
+        _tileMap = _tileMap ?? new Dictionary<Vector2Int, TileType>(tiles.Count);
+        _pathCells = _pathCells ?? new HashSet<Vector2Int>();
+        _modsByCell = _modsByCell ?? new Dictionary<Vector2Int, PathModifiers>();
+
+        _tileMap.Clear();
+        _pathCells.Clear();
+        _modsByCell.Clear();
+
+        // Construir mapa y set de paths en O(n)
+        for (int i = 0; i < tiles.Count; i++)
+        {
+            var t = tiles[i];
+            if (!IsInside(t.grid)) continue; // ignorar fuera de rango
+            _tileMap[t.grid] = t.type;
+            if (t.type == TileType.Path) _pathCells.Add(t.grid);
+        }
+
+        // Overrides por celda
+        for (int i = 0; i < perCellOverrides.Count; i++)
+        {
+            var ov = perCellOverrides[i];
+            if (!IsInside(ov.grid)) continue;
+            _modsByCell[ov.grid] = ov.mods;
+        }
+    }
+
+    // =========================
+    // API
+    // =========================
     public Vector3 GridToWorld(Vector2Int g)
         => origin + new Vector3(g.x * cellSize, 0f, g.y * cellSize);
 
     public bool IsInside(Vector2Int g)
         => g.x >= 0 && g.x < gridWidth && g.y >= 0 && g.y < gridHeight;
 
+    // IMPORTANTE: ahora realmente busca por coordenada en el diccionario
     public bool TryGetTile(Vector2Int g, out TileEntry t)
     {
-        int idx = g.y * gridWidth + g.x;
-        if (idx >= 0 && idx < tiles.Count)
+        if (_tileMap != null && _tileMap.TryGetValue(g, out var type))
         {
-            t = tiles[idx];
+            t = new TileEntry { grid = g, type = type };
             return true;
         }
         t = default;
@@ -74,8 +138,9 @@ public class TileLayout : ScriptableObject
     public bool IsPath(Vector2Int g)
     {
         if (!IsInside(g)) return false;
-        if (TryGetTile(g, out var t)) return t.type == TileType.Path;
-        return false;
+        // O(1) si hay caché; fallback a TryGetTile si aún no se construyó
+        if (_pathCells != null) return _pathCells.Contains(g);
+        return TryGetTile(g, out var t) && t.type == TileType.Path;
     }
 
     public static readonly Vector2Int[] OrthoDirs = new Vector2Int[]
@@ -87,7 +152,7 @@ public class TileLayout : ScriptableObject
     };
 
     /// <summary>
-    /// Obtiene la celda donde colocar el Core
+    /// Obtiene la celda donde colocar el Core.
     /// </summary>
     public Vector2Int GetCoreCell()
     {
@@ -105,14 +170,20 @@ public class TileLayout : ScriptableObject
             return entry;
         }
 
-        // Fallback: buscar cualquier celda path
-        for (int y = 0; y < gridHeight; y++)
+        // Fallback: buscar cualquier celda path (scan O(n), rápido con _pathCells)
+        if (_pathCells != null && _pathCells.Count > 0)
         {
-            for (int x = 0; x < gridWidth; x++)
-            {
-                var cell = new Vector2Int(x, y);
-                if (IsPath(cell)) return cell;
-            }
+            // devolver la primera arbitraria
+            foreach (var c in _pathCells) return c;
+        }
+        else
+        {
+            for (int y = 0; y < gridHeight; y++)
+                for (int x = 0; x < gridWidth; x++)
+                {
+                    var cell = new Vector2Int(x, y);
+                    if (IsPath(cell)) return cell;
+                }
         }
 
         return new Vector2Int(0, 0); // Último recurso
@@ -163,16 +234,11 @@ public class TileLayout : ScriptableObject
 
     public PathModifiers GetPathModifiers(Vector2Int cell)
     {
-        // Si no es path, no aplica nada
         if (!IsPath(cell)) return default;
 
-        // Buscar override primero
-        for (int i = 0; i < perCellOverrides.Count; i++)
-        {
-            if (perCellOverrides[i].grid == cell)
-                return perCellOverrides[i].mods;
-        }
-        // Sino, defaults del tile
+        if (_modsByCell != null && _modsByCell.TryGetValue(cell, out var mods))
+            return mods;
+
         return defaultPathMods;
     }
 }

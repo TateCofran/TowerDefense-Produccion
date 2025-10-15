@@ -1,7 +1,7 @@
 using UnityEngine;
 
 [DisallowMultipleComponent]
-public class CellSlot : MonoBehaviour
+public sealed class CellSlot : MonoBehaviour
 {
     [Header("Placement")]
     [SerializeField] private Transform parentForTurrets;   // opcional: dónde parentear torretas
@@ -15,27 +15,19 @@ public class CellSlot : MonoBehaviour
     [Tooltip("Si está activo, al colocar la torreta se muestra el rango automáticamente.")]
     [SerializeField] private bool showRangeOnPlace = false;
 
-    // (si lo usás en otro lado)
-    [SerializeField] private ITurretDupeSystem dupeSystem;
+    // Unity no serializa interfaces sin [SerializeReference]; si no lo usás, podés quitarlo.
+    [SerializeReference] private ITurretDupeSystem dupeSystem;
 
     private Collider _cellCollider;      // collider de la celda (o hijo)
     private Transform _topAnchor;        // opcional: si querés anclar manualmente la “tapa” de la celda
 
     private void Awake()
     {
-        // Intentamos cachear un collider válido para medir la tapa (bounds.max.y)
         _cellCollider = GetComponent<Collider>();
         if (!_cellCollider) _cellCollider = GetComponentInChildren<Collider>();
 
-        // Si querés, podés poner un hijo llamado "TopAnchor" para definir la tapa exacta
         var ta = transform.Find("TopAnchor");
         if (ta) _topAnchor = ta;
-    }
-
-    private void Start()
-    {
-        // Si necesitás el sistema de dupes concreto:
-        // dupeSystem = FindFirstObjectByType<TurretDupeSystem>();
     }
 
     /// <summary>
@@ -52,7 +44,7 @@ public class CellSlot : MonoBehaviour
             return new Vector3(b.center.x, b.max.y, b.center.z);
         }
 
-        // Fallback: transform.position (no ideal, pero evita nulls)
+        // Fallback: transform.position (evita nulls)
         return transform.position;
     }
 
@@ -78,7 +70,7 @@ public class CellSlot : MonoBehaviour
             return b.size.y * 0.5f;
         }
 
-        return 0.5f; // valor por defecto si no hay nada
+        return 0.5f; // por defecto si no hay nada
     }
 
     // ============================
@@ -95,9 +87,9 @@ public class CellSlot : MonoBehaviour
         return TryPlace(turretPrefab, turretData, out _);
     }
 
-    // ============================
-    // Sobrecarga opcional con 'out' por si la querés usar desde UI/placer externo
-    // ============================
+    /// <summary>
+    /// Sobrecarga con 'out instance' por si la usás desde UI/placer externo.
+    /// </summary>
     public bool TryPlace(GameObject turretPrefab, TurretDataSO turretData, out GameObject instance)
     {
         instance = null;
@@ -128,40 +120,38 @@ public class CellSlot : MonoBehaviour
         }
 
         // Configurar el data holder si existe
-        var dataHolder = turret.GetComponent<TurretDataHolder>();
-        if (dataHolder != null && turretData != null)
+        if (turretData != null && turret.TryGetComponent<TurretDataHolder>(out var dataHolder))
         {
             dataHolder.ApplyDataSO(turretData);
         }
 
-        // === CLAVE: marcar como colocada para habilitar targeting/disparo ===
-        var turretComp = turret.GetComponent<Turret>();
-        if (turretComp != null)
+        // Marcar como colocada para habilitar targeting/disparo
+        if (turret.TryGetComponent<Turret>(out var turretComp))
         {
             turretComp.SetPlaced(true);
-
-            // opcional: mostrar rango al colocar
             if (showRangeOnPlace) turretComp.ShowRange();
         }
         else
         {
-            Debug.LogWarning($"[CellSlot] La instancia '{turret.name}' no tiene componente Turret. " +
-                             $"No podrá activar/desactivar combate por placement.");
+            Debug.LogWarning($"[CellSlot] La instancia '{turret.name}' no tiene componente Turret.");
         }
 
-        // Guardar estado
+        // Estado
         currentTurret = turret;
         occupied = true;
         instance = turret;
+
+        // Si usás un sistema de duplicados, notificá aquí (opcional)
+        // dupeSystem?.OnPlaced(turret);
 
         return true;
     }
 
     public bool TryRemove()
     {
-        // Protegemos contra referencia destruida
         if (!occupied || !currentTurret) { occupied = false; currentTurret = null; return false; }
 
+        // dupeSystem?.OnRemoved(currentTurret); // opcional
         Destroy(currentTurret);
         currentTurret = null;
         occupied = false;
@@ -171,3 +161,4 @@ public class CellSlot : MonoBehaviour
     public bool IsOccupied => occupied;
     public GameObject GetCurrentTurret() => currentTurret;
 }
+

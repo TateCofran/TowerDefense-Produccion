@@ -1,49 +1,61 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 
-public class SpatialPartitioner : MonoBehaviour, ISpatialPartitioner
+public sealed class SpatialPartitioner : MonoBehaviour, ISpatialPartitioner
 {
     [SerializeField] private float spatialCellSize = 10f;
 
-    private Dictionary<Vector2Int, List<int>> _spatialGrid = new();
+    // celdas -> índices de tiles
+    private readonly Dictionary<Vector2Int, List<int>> _spatialGrid = new();
+    // índice de tile -> AABB
+    private readonly Dictionary<int, (Vector3 min, Vector3 max)> _aabbs = new();
 
     public void AddToSpatialGrid(PlacedTile tile, int index)
     {
-        Vector2Int minCell = WorldToSpatialCell(tile.aabbMin);
-        Vector2Int maxCell = WorldToSpatialCell(tile.aabbMax);
+        // guardar AABB para consultas rápidas
+        _aabbs[index] = (tile.aabbMin, tile.aabbMax);
+
+        var minCell = WorldToSpatialCell(tile.aabbMin);
+        var maxCell = WorldToSpatialCell(tile.aabbMax);
 
         for (int x = minCell.x; x <= maxCell.x; x++)
         {
             for (int y = minCell.y; y <= maxCell.y; y++)
             {
-                Vector2Int cellKey = new Vector2Int(x, y);
-                if (!_spatialGrid.ContainsKey(cellKey))
-                    _spatialGrid[cellKey] = new List<int>();
-
-                _spatialGrid[cellKey].Add(index);
+                var key = new Vector2Int(x, y);
+                if (!_spatialGrid.TryGetValue(key, out var list))
+                {
+                    list = new List<int>(4);
+                    _spatialGrid[key] = list;
+                }
+                list.Add(index);
             }
         }
     }
 
     public bool OverlapsAnyOptimized(Vector3 nMin, Vector3 nMax)
     {
-        Vector2Int minCell = WorldToSpatialCell(nMin);
-        Vector2Int maxCell = WorldToSpatialCell(nMax);
+        var minCell = WorldToSpatialCell(nMin);
+        var maxCell = WorldToSpatialCell(nMax);
 
-        var gridGenerator = GetComponent<GridGenerator>();
-        if (gridGenerator == null) return false;
+        // evitar chequear el mismo índice varias veces
+        var checkedSet = new HashSet<int>();
 
         for (int x = minCell.x; x <= maxCell.x; x++)
         {
             for (int y = minCell.y; y <= maxCell.y; y++)
             {
-                Vector2Int cellKey = new Vector2Int(x, y);
-                if (_spatialGrid.TryGetValue(cellKey, out var indices))
+                var key = new Vector2Int(x, y);
+                if (!_spatialGrid.TryGetValue(key, out var indices)) continue;
+
+                for (int i = 0; i < indices.Count; i++)
                 {
-                    foreach (int index in indices)
+                    int idx = indices[i];
+                    if (!checkedSet.Add(idx)) continue; // ya comprobado
+
+                    if (_aabbs.TryGetValue(idx, out var aabb))
                     {
-                        var t = gridGenerator.GetPlacedTile(index);
-                        if (AabbOverlap(nMin, nMax, t.aabbMin, t.aabbMax))
+                        if (AabbOverlap(nMin, nMax, aabb.min, aabb.max))
                             return true;
                     }
                 }
@@ -55,13 +67,15 @@ public class SpatialPartitioner : MonoBehaviour, ISpatialPartitioner
     public void ClearSpatialGrid()
     {
         _spatialGrid.Clear();
+        _aabbs.Clear();
     }
 
     private Vector2Int WorldToSpatialCell(Vector3 worldPos)
     {
+        float s = Mathf.Max(0.0001f, spatialCellSize);
         return new Vector2Int(
-            Mathf.FloorToInt(worldPos.x / spatialCellSize),
-            Mathf.FloorToInt(worldPos.z / spatialCellSize)
+            Mathf.FloorToInt(worldPos.x / s),
+            Mathf.FloorToInt(worldPos.z / s)
         );
     }
 

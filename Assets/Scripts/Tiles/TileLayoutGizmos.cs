@@ -26,7 +26,7 @@ public class TileLayoutGizmos : MonoBehaviour
     public Color previewWire = new Color(0f, 0f, 0f, 0.38f);
 
     [Header("Tamaños")]
-    public float yLift = 0.02f;           // levantar para evitar z-fighting
+    public float yLift = 0.02f;
     public float sphereRadius = 0.2f;
     public float labelHeight = 0.3f;
     public float arrowSize = 0.8f;
@@ -44,7 +44,7 @@ public class TileLayoutGizmos : MonoBehaviour
         EnsureStyles();
 #endif
 
-        // === AABB del último tile (centrado correcto con media celda) ===
+        // AABB del último tile
         if (drawLastTileAABB && gridGenerator.CurrentLayout != null)
         {
             var L = gridGenerator.CurrentLayout;
@@ -59,8 +59,8 @@ public class TileLayoutGizmos : MonoBehaviour
             Gizmos.DrawWireCube(center, size);
         }
 
-        // === Flecha desde el EXIT seleccionado (dirección de salida) ===
 #if UNITY_EDITOR
+        // flecha del exit seleccionado
         if (drawExitArrow && gridGenerator.TryGetSelectedExitWorld(out var exitPos, out var dir))
         {
             Handles.color = Color.white;
@@ -70,7 +70,7 @@ public class TileLayoutGizmos : MonoBehaviour
         }
 #endif
 
-        // === EXITS no usados (letras) ===
+        // exits no usados
         if (drawUnusedExits)
         {
             var exits = gridGenerator.GetAvailableExits();
@@ -85,35 +85,32 @@ public class TileLayoutGizmos : MonoBehaviour
             }
         }
 
-        // === Previews (con media celda y yLift) ===
+        // previews
         if (drawPlacementPreviews)
         {
             var previews = gridGenerator.GetPlacementPreviews();
             foreach (var pv in previews)
             {
-                // Centro con compensación de media celda
                 Vector3 center = pv.origin + new Vector3(pv.sizeXZ.x * 0.5f - pv.cellSize * 0.5f, yLift, pv.sizeXZ.y * 0.5f - pv.cellSize * 0.5f);
                 Vector3 size = new Vector3(pv.sizeXZ.x, 0.01f, pv.sizeXZ.y);
 
-                // Relleno por estado
+                // usar el enum global PreviewStatus
                 switch (pv.status)
                 {
-                    case GridGenerator.PreviewStatus.Valid: Gizmos.color = okFill; break;
-                    case GridGenerator.PreviewStatus.Overlap: Gizmos.color = overlapFill; break;
+                    case PreviewStatus.Valid: Gizmos.color = okFill; break;
+                    case PreviewStatus.Overlap: Gizmos.color = overlapFill; break;
                     default: Gizmos.color = edgeFill; break;
                 }
                 Gizmos.DrawCube(center, size);
 
-                // Contorno
                 Gizmos.color = previewWire;
                 Gizmos.DrawWireCube(center, size);
 
 #if UNITY_EDITOR
-                // Etiqueta (opcional: solo para válidos)
                 if (!showPreviewLabelsOnlyForValid || pv.valid)
                 {
-                    string tag = pv.status == GridGenerator.PreviewStatus.Valid ? "OK" :
-                                 pv.status == GridGenerator.PreviewStatus.Overlap ? "SOLAPA" : "BORDE";
+                    string tag = pv.status == PreviewStatus.Valid ? "OK" :
+                                 pv.status == PreviewStatus.Overlap ? "SOLAPA" : "BORDE";
                     DrawLabel(center + Vector3.up * (labelHeight * 0.6f), $"{tag}\n{pv.note}");
                 }
 #endif
@@ -142,7 +139,6 @@ public class TileLayoutGizmos : MonoBehaviour
 
     void DrawLabel(Vector3 worldPos, string text)
     {
-        // Pequeña sombra para legibilidad
         Handles.Label(worldPos + new Vector3(0.01f, 0.01f, 0), text, _labelStyleShadow);
         Handles.Label(worldPos, text, _labelStyleMain);
     }

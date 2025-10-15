@@ -1,218 +1,127 @@
-﻿using System.Collections.Generic;
-using UnityEngine;
-using System;
-using System.Linq;
+﻿using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using UnityEditor.Experimental.GraphView;
+using UnityEditor.PackageManager;
+using UnityEngine;
 
 public class GridGenerator : MonoBehaviour, ITileGenerator
 {
-    [Header("Dependencies")]
-    [SerializeField] private TilePoolManager tilePoolManager;
+    [Header("Dependencies")][SerializeField] private TilePoolManager tilePoolManager;
     [SerializeField] private SpatialPartitioner spatialPartitioner;
     [SerializeField] private TileOrientationCalculator orientationCalculator;
+    [SerializeField] private bool generateOnStart = true;
 
-    [Header("Layouts")]
-    [SerializeField] private TileLayout initialLayout;
-    [SerializeField] private List<TileLayout> candidateLayouts = new List<TileLayout>();
+    [Header("Layouts")][SerializeField] private TileLayout initialLayout; [SerializeField] private List<TileLayout> candidateLayouts = new();
 
-    [Header("Prefabs")]
-    [SerializeField] private GameObject grassPrefab;
-    [SerializeField] private GameObject pathBasicPrefab;
-    [SerializeField] private GameObject pathDamagePrefab;
-    [SerializeField] private GameObject pathSlowPrefab;
-    [SerializeField] private GameObject pathStunPrefab;
+    [Header("Prefabs")][SerializeField] private GameObject grassPrefab, pathBasicPrefab, pathDamagePrefab, pathSlowPrefab, pathStunPrefab;
 
-    [Header("Core")]
-    [SerializeField] private GameObject corePrefab; // Prefab del Core
-    [SerializeField] private Vector3 coreOffset = Vector3.zero; // Offset para posicionamiento
+    [Header("Core")][SerializeField] private GameObject corePrefab; [SerializeField] private Vector3 coreOffset = Vector3.zero;
 
-    private GameObject spawnedCore; // Referencia al Core instanciado
+    [Header("Parent / Salida")][SerializeField] private Transform tilesRoot; [SerializeField] private string rootName = "TileChainRoot"; [SerializeField] private string tileGroupBaseName = "Tile_";
 
-    [Header("Parent / Salida")]
-    [SerializeField] private Transform tilesRoot;
-    [SerializeField] private string rootName = "TileChainRoot";
-    [SerializeField] private string tileGroupBaseName = "Tile_";
+    [Header("Cadena")][SerializeField] private bool clearOnStartGenerate = true; [SerializeField] private int connectionTries = 24;
 
-    [Header("Cadena")]
-    [SerializeField] private bool clearOnStartGenerate = true;
-    [SerializeField] private int connectionTries = 24;
+    [Header("Offsets por celda")][SerializeField] private Vector3 grassCellOffset = Vector3.zero; [SerializeField] private Vector3 pathCellOffset = Vector3.zero;
 
-    [Header("Offsets por celda")]
-    [SerializeField] private Vector3 grassCellOffset = Vector3.zero;
-    [SerializeField] private Vector3 pathCellOffset = Vector3.zero;
+    [Header("Offset entre tiles")][SerializeField] private float tileGap = 0.25f; [SerializeField] private Vector3 extraTileOffset = Vector3.zero;
 
-    [Header("Offset de unión entre tiles (nivel TILE)")]
-    [SerializeField] private float tileGap = 0.25f;
-    [SerializeField] private Vector3 extraTileOffset = Vector3.zero;
+    [Header("Orientaciones")][SerializeField] private bool allowRotations = true; [SerializeField] private bool allowFlip = true; [SerializeField] private bool worldPlusZUsesYZeroEdge = true;
 
-    [Header("Orientaciones")]
-    [SerializeField] private bool allowRotations = true;
-    [SerializeField] private bool allowFlip = true;
+    [Header("UI / Exits")][SerializeField] private int selectedExitIndex = 0;
 
-    [Header("Convención eje Y del grid")]
-    [Tooltip("+Z del mundo corresponde al borde y==0 del grid (true). Si tu grid usa y==h-1 como 'arriba', ponelo en false.")]
-    [SerializeField] private bool worldPlusZUsesYZeroEdge = true;
+    [Header("Spawn/Runner")][SerializeField] private float minDistanceToCore = 0f; [SerializeField] private bool excludeCoreNeighbors = true;
+    [SerializeField] private GameObject exitRunnerPrefab; [SerializeField] private float runnerYOffset = 0.05f; [SerializeField] private bool autoSpawnRunnersOnAppend = false;
 
-    public enum PreviewStatus { Valid, Overlap, WrongEdge }
+    // Servicios / repos / adapters
+    private IChainRepository chain;
+    private IExitRepository exits;
+    private ISpatialOverlapChecker overlap;
+    private IOrientationService orient;
 
-    // Propiedades públicas para acceso de las dependencias
-    public GameObject GrassPrefab => grassPrefab;
-    public GameObject PathBasicPrefab => pathBasicPrefab;
-    public GameObject PathDamagePrefab => pathDamagePrefab;
-    public GameObject PathSlowPrefab => pathSlowPrefab;
-    public GameObject PathStunPrefab => pathStunPrefab;
+    private IPrefabSelector prefabs;
+    private ILayoutInstantiator instantiator;
+    private IPlacementCalculator placement;
+    private ICandidateProvider candidates;
 
-    // Propiedades públicas para TileLayoutGizmos
-    public TileLayout CurrentLayout => _chainCount > 0 ? _chainArray[_chainCount - 1].layout : initialLayout;
-    public Vector3 CurrentWorldOrigin => _chainCount > 0 ? _chainArray[_chainCount - 1].worldOrigin : Vector3.zero;
-    public int CurrentRotSteps => _chainCount > 0 ? _chainArray[_chainCount - 1].rotSteps : 0;
-    public bool CurrentFlipped => _chainCount > 0 && _chainArray[_chainCount - 1].flipped;
+    private ICoreService core;
+    private ISpawnPointsService spawns;
+    private IRunnerService runners;
 
-    private PlacedTile[] _chainArray = Array.Empty<PlacedTile>();
-    private ExitRecord[] _exitsArray = Array.Empty<ExitRecord>();
-    private int _chainCount = 0;
-    private int _exitsCount = 0;
-    private System.Random _rng = new System.Random();
-    private List<Vector3> spawnPoints = new List<Vector3>();
 
-    [SerializeField] private int selectedExitIndex = 0;
+    private System.Random rng = new System.Random();
 
-    #region Spawn Exits & Gizmos
-
-    [Header("Spawn / Exits")]
-    [SerializeField] private float minDistanceToCore = 0f;
-    [SerializeField] private bool excludeCoreNeighbors = true;
-
-    [Header("Gizmos de Exits")]
-    [SerializeField] private bool drawExitGizmos = true;
-    [SerializeField] private bool drawExitLabels = true;
-    [SerializeField] private float exitGizmoY = 0.05f;
-    [SerializeField] private float exitSphereRadius = 0.18f;
-    [SerializeField] private Color colorOpenExit = new Color(0.1f, 0.85f, 0.2f, 1f);
-    [SerializeField] private Color colorUsedOrClosedExit = new Color(1f, 0.5f, 0.1f, 1f);
-    [SerializeField] private Color colorLastUsed = new Color(1f, 1f, 0.2f, 1f);
-    [SerializeField] private Color colorCore = new Color(0f, 0.9f, 0.9f, 1f);
-
-    [Header("Historial de spawns usados")]
-    [SerializeField] private int lastUsedCapacity = 6;
-    private readonly Queue<Vector3> _lastUsedSpawns = new Queue<Vector3>();
-
-    // Round-robin opcional
-    private int _spawnRR = 0;
-
-    #endregion
-    #region Spawn Exits Helpers
-    // === EXIT RUNNERS ===
-    [Header("Exit Runners")]
-    [SerializeField] private GameObject exitRunnerPrefab; // Prefab a spawnear en cada EXIT abierto
-    [SerializeField] private float exitRunnerSpeed = 3.5f;
-    [SerializeField] private float exitRunnerHeightOffset = 0.05f;
-    [SerializeField] private bool autoSpawnRunnersOnGenerate = false;   // Opcional: spawnear automáticamente en GenerateFirst
-    [SerializeField] private bool autoSpawnRunnersOnAppend = false;     // Opcional: spawnear automáticamente tras un Append
-
-    [Header("Exit Runners (Path)")]
-
-    //[SerializeField] private float runnerSpeed = 3.5f;
-    [SerializeField] private float runnerYOffset = 0.05f;
-
-    private bool IsCoreNeighborWorld(Vector3 exitWorld)
-    {
-        var core = GameObject.FindGameObjectWithTag("Core")?.transform;
-        if (!core) return false;
-
-        // Vecinos inmediatos: chequeo por distancia ~ cellSize/2
-        float cell = (_chainCount > 0 && _chainArray[0].layout) ? _chainArray[0].layout.cellSize : 1f;
-        return Vector3.Distance(new Vector3(exitWorld.x, 0f, exitWorld.z), new Vector3(core.position.x, 0f, core.position.z)) < (cell * 1.1f);
-    }
-
-    private Vector3 ExitToWorld(ExitRecord ex)
-    {
-        var pt = GetPlacedTile(ex.tileIndex);
-        return pt.worldOrigin + TileOrientationCalculator.CellToWorldLocal(ex.cell, pt.layout, pt.rotSteps, pt.flipped);
-    }
-
-    /// <summary>
-    /// Devuelve todas las salidas “abiertas” (no Used ni Closed) en coordenadas de mundo.
-    /// </summary>
-    private List<Vector3> GetOpenExitWorldPositions()
-    {
-        var list = new List<Vector3>();
-        for (int i = 0; i < _exitsCount; i++)
-        {
-            var ex = _exitsArray[i];
-            if (ex.Used || ex.Closed) continue;
-            list.Add(ExitToWorld(ex));
-        }
-        return list;
-    }
-
-    private void MarkSpawnUsed(Vector3 worldPos)
-    {
-        _lastUsedSpawns.Enqueue(worldPos);
-        while (_lastUsedSpawns.Count > Mathf.Max(1, lastUsedCapacity))
-            _lastUsedSpawns.Dequeue();
-    }
-
-    #endregion
-
-    private void Start()
+    private void Awake()
     {
         InitializeDependencies();
-
-
-        GenerateFirst(); // crea el primer tile y (si corresponde) el Core
-
-    }
-    private void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.F))
-        {
-            var exits = GetAvailableExits(); // (label, worldPos) solo abiertos/No usados
-            foreach (var (_, worldPos) in exits)
-                SpawnRunnerFollowingPath(worldPos);
-        }
     }
 
     private void InitializeDependencies()
     {
+        // 1) Components (si faltan, los busca en el mismo GO)
         if (tilePoolManager == null) tilePoolManager = GetComponent<TilePoolManager>();
         if (spatialPartitioner == null) spatialPartitioner = GetComponent<SpatialPartitioner>();
         if (orientationCalculator == null) orientationCalculator = GetComponent<TileOrientationCalculator>();
 
-        tilePoolManager?.InitializePools();
-    }
+        // 2) Orientation + repos
+        orient = new OrientationAdapter(orientationCalculator);
+        chain = new ChainRepository();
+        exits = new ExitRepository(orient);
 
-    #region Métodos Públicos Adicionales
-    public int GetChainCount()
-    {
-        return _chainCount;
-    }
+        // 3) Spatial overlap (AABB) vía adapter a tu partitioner
+        overlap = new SpatialOverlapAdapter(spatialPartitioner);
 
-    public PlacedTile GetPlacedTile(int index)
-    {
-        if (index >= 0 && index < _chainCount)
-            return _chainArray[index];
-        return new PlacedTile();
-    }
-
-    public List<PlacedTile> GetAllPlacedTiles()
-    {
-        var tiles = new List<PlacedTile>();
-        for (int i = 0; i < _chainCount; i++)
+        // 4) Pooling (sin dependencia circular con GridGenerator)
+        if (tilePoolManager != null)
         {
-            tiles.Add(_chainArray[i]);
+            tilePoolManager.InitializePool(grassPrefab, 64);
+            tilePoolManager.InitializePool(pathBasicPrefab, 64);
+            tilePoolManager.InitializePool(pathDamagePrefab, 32);
+            tilePoolManager.InitializePool(pathSlowPrefab, 32);
+            tilePoolManager.InitializePool(pathStunPrefab, 32);
         }
-        return tiles;
+
+        // 5) Prefab selector + instanciador de layout
+        prefabs = new PrefabSelector(grassPrefab, pathBasicPrefab, pathDamagePrefab, pathSlowPrefab, pathStunPrefab);
+        instantiator = new LayoutInstantiator(prefabs, orient, tilePoolManager, grassCellOffset, pathCellOffset);
+
+        // 6) Cálculo de placement y candidatos válidos
+        placement = new PlacementCalculator(tileGap, extraTileOffset);
+        candidates = new CandidateProvider(worldPlusZUsesYZeroEdge);
+
+        // 7) Core + spawns + runners
+        core = new CoreService(corePrefab, tilesRoot);
+
+        // Elegimos un cellSize base (si tenés layouts heterogéneos, esto funciona bien igual)
+        float baseCellSize = (initialLayout != null) ? initialLayout.cellSize : 1f;
+
+        spawns = new SpawnPointsService(
+            exits, chain, core, orient,
+            baseCellSize,            // << acá está el cellSize que te faltaba
+            minDistanceToCore,
+            excludeCoreNeighbors
+        );
+
+        runners = new RunnerService(
+            exits, chain, core, orient,
+            exitRunnerPrefab,
+            runnerYOffset
+        );
     }
 
-    public List<Vector3> SpawnPoints
+    
+
+    private void Start()
     {
-        get { return new List<Vector3>(spawnPoints); }
+        if (generateOnStart) GenerateFirst();
     }
 
-    #endregion
 
-    #region Implementación de ITileGenerator
+    private float GetGlobalCellSize() => (initialLayout ? initialLayout.cellSize : 1f);
+
+
     public void GenerateFirst()
     {
         if (!CheckPrefabs()) return;
@@ -221,801 +130,264 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
             Debug.LogError("[GridGenerator] Asigná initialLayout.");
             return;
         }
-        EnsureRoot();
 
+        // Limpieza respetando tu flag
         if (clearOnStartGenerate)
         {
-            ClearRootChildren();
-            _chainArray = Array.Empty<PlacedTile>();
-            _exitsArray = Array.Empty<ExitRecord>();
-            _chainCount = 0;
-            _exitsCount = 0;
-            spatialPartitioner?.ClearSpatialGrid();
-            selectedExitIndex = 0;
+            ClearRootChildren();     // <-- ya existe en tu clase
+            exits.Clear();
+            chain.Clear();
+            overlap.Clear();         // ISpatialOverlapChecker.Clear()
+            core?.ClearCore();       // ICoreService
+        }
 
-            if (spawnedCore != null)
+        tilesRoot = EnsureRoot(tilesRoot, rootName);
+
+        // Grupo visual del primer tile (usa tu método)
+        var group = CreateTileParent(tilesRoot, $"{tileGroupBaseName}{chain.Count}");
+
+        // Orientación inicial
+        int rot = 0;
+        bool flip = false;
+        Vector3 origin = initialLayout.origin;
+
+        // Instanciación de celdas
+        int count = instantiator.InstantiateLayout(initialLayout, origin, rot, flip, group);
+
+        // Spawn del Core (usando CoreService) si corresponde
+        if (corePrefab != null)
+        {
+            // Tomamos coreCell (si hasCore) o entry como fallback
+            Vector2Int coreCell = initialLayout.hasCore ? initialLayout.GetCoreCell() : initialLayout.entry;
+            if (initialLayout.IsInside(coreCell) && initialLayout.IsPath(coreCell))
             {
-                Destroy(spawnedCore);
-                spawnedCore = null;
+                Vector3 corePos = origin + orient.CellToWorldLocal(coreCell, initialLayout, rot, flip) + coreOffset;
+                core.SpawnCore(corePos);
             }
         }
 
-        int rot = 0; bool flip = false;
-        Vector3 worldOrigin = initialLayout.origin;
+        // AABB del tile colocado
+        var od = orient.GetOrientedData(initialLayout, rot, flip);
+        placement.ComputeAABB(origin, od.w, od.h, initialLayout.cellSize, out var aMin, out var aMax);
 
-        var parent = CreateTileParent(tilesRoot, tileGroupBaseName + _chainCount);
-        int count = InstantiateLayout(initialLayout, worldOrigin, rot, flip, parent);
-
-        if (initialLayout.hasCore)
-        {
-            SpawnCoreAtEntry(initialLayout, worldOrigin, rot, flip);
-        }
-
-        TileOrientationCalculator.OrientedSize(initialLayout, rot, out int w, out int h);
-        ComputeAABB(worldOrigin, w, h, initialLayout.cellSize, out var aMin, out var aMax);
-
+        // Registrar en cadena + espacial
         var placed = new PlacedTile
         {
             layout = initialLayout,
-            worldOrigin = worldOrigin,
+            worldOrigin = origin,
             rotSteps = rot,
             flipped = flip,
-            parent = parent,
+            parent = group,
             aabbMin = aMin,
             aabbMax = aMax
         };
+        chain.Add(placed);
+        overlap.Add(placed, chain.Count - 1);
 
-        AddToChain(placed);
-        spatialPartitioner?.AddToSpatialGrid(placed, _chainCount - 1);
-        AddTileExitsToPool(_chainCount - 1, excludeAssetCell: null);
+        // Registrar exits del primer tile
+        AddTileExitsToPool(chain.Count - 1, excludeAssetCell: null);
+        exits.Relabel();
 
-        Debug.Log($"[GridGenerator] Primer tile instanciado ({count} celdas). Exits disponibles: {GetAvailableExitLabels().Count}");
-        //if (autoSpawnRunnersOnGenerate)
-           // SpawnRunnersAtAllOpenExits();
+        int abiertos = exits.IndicesDisponibles().Count();
+        Debug.Log($"[GridGenerator] Primer tile instanciado ({count} celdas). Exits disponibles: {abiertos}");
     }
 
-    private void SpawnCoreAtEntry(TileLayout layout, Vector3 worldOrigin, int rotSteps, bool flip)
-    {
-        if (corePrefab == null)
-        {
-            Debug.LogWarning("[GridGenerator] No hay corePrefab asignado.");
-            return;
-        }
 
-        if (!layout.hasCore)
-        {
-            Debug.Log($"[GridGenerator] Layout {layout.name} no genera Core (hasCore = false)");
-            return;
-        }
-
-        Vector2Int coreCell = layout.GetCoreCell();
-
-        if (!layout.IsPath(coreCell))
-        {
-            Debug.LogWarning($"[GridGenerator] La celda del Core ({coreCell}) no es un Path. Usando entry.");
-            coreCell = layout.entry;
-
-            if (!layout.IsPath(coreCell))
-            {
-                for (int y = 0; y < layout.gridHeight; y++)
-                {
-                    for (int x = 0; x < layout.gridWidth; x++)
-                    {
-                        var testCell = new Vector2Int(x, y);
-                        if (layout.IsPath(testCell))
-                        {
-                            coreCell = testCell;
-                            break;
-                        }
-                    }
-                    if (layout.IsPath(coreCell)) break;
-                }
-            }
-        }
-
-        Vector2Int coreOriented = TileOrientationCalculator.ApplyOrientationToCell(coreCell, layout, rotSteps, flip);
-        Vector3 corePosition = worldOrigin + TileOrientationCalculator.CellToWorldLocal(coreOriented, layout, rotSteps, flip);
-        corePosition += coreOffset;
-
-        spawnedCore = Instantiate(corePrefab, corePosition, Quaternion.identity, tilesRoot);
-        spawnedCore.name = "Core";
-
-        SetupCoreCell(spawnedCore);
-
-        Debug.Log($"[GridGenerator] Core instanciado en celda {coreCell} -> posición: {corePosition}");
-    }
-
-    public Vector3 GetCorePosition()
-    {
-        return spawnedCore != null ? spawnedCore.transform.position : Vector3.zero;
-    }
-
-    private void SetupCoreCell(GameObject coreObject)
-    {
-        if (coreObject == null) return;
-
-        coreObject.tag = "Core";
-
-        if (coreObject.GetComponent<Collider>() == null)
-        {
-            var collider = coreObject.AddComponent<BoxCollider>();
-            collider.isTrigger = true;
-        }
-
-        if (coreObject.GetComponent<Core>() == null)
-        {
-            coreObject.AddComponent<Core>();
-        }
-    }
-
-    public bool HasCore()
-    {
-        return spawnedCore != null;
-    }
 
     public void AppendNextUsingSelectedExit()
-    {
-        int globalIdx = GetGlobalExitIndexFromAvailable(selectedExitIndex);
-        if (globalIdx < 0)
         {
-            Debug.LogWarning("[GridGenerator] No hay EXITS disponibles.");
-            return;
+            int global = exits.GlobalIndexFromAvailable(selectedExitIndex);
+            if (global < 0) { Debug.LogWarning("[GridGenerator] No hay EXITS disponibles."); return; }
+            var chosen = exits.Get(global);
+            if (TryAppendAtExit(chosen)) { exits.MarkUsed(global); exits.Relabel(); if (autoSpawnRunnersOnAppend) runners.SpawnRunnersAtAllOpenExits(); }
+            else if (!HasAnyValidPlacementForExit(chosen)) { exits.MarkClosed(global); exits.Relabel(); selectedExitIndex = 0; }
         }
-
-        ExitRecord chosen = _exitsArray[globalIdx];
-        if (AppendTileToExit(chosen))
-        {
-            chosen.SetUsed(true);
-            _exitsArray[globalIdx] = chosen;
-            RelabelAvailableExits();
-        }
-        else
-        {
-            if (!HasAnyValidPlacementForExit(chosen))
-            {
-                chosen.SetClosed(true);
-                chosen.label = "EXIT CERRADO";
-                _exitsArray[globalIdx] = chosen;
-                RelabelAvailableExits();
-                selectedExitIndex = 0;
-            }
-        }
-
-    }
 
     public IEnumerator AppendNextAsync()
     {
-        int globalIdx = GetGlobalExitIndexFromAvailable(selectedExitIndex);
-        if (globalIdx < 0 || _exitsCount == 0) yield break;
-
-        ExitRecord chosen = _exitsArray[globalIdx];
-        if (chosen.Used) yield break;
-
+        int global = exits.GlobalIndexFromAvailable(selectedExitIndex);
+        if (global < 0 || exits.Count == 0) yield break;
+        var chosen = exits.Get(global); if (chosen.Used) yield break;
         bool success = false;
-        for (int attempt = 0; attempt < connectionTries; attempt++)
-        {
-            if (AppendTileToExit(chosen))
-            {
-                success = true;
-                break;
-            }
-            yield return null;
-        }
-
-        if (success)
-        {
-            chosen.SetUsed(true);
-            _exitsArray[globalIdx] = chosen;
-            RelabelAvailableExits();
-            if (autoSpawnRunnersOnAppend)
-                SpawnRunnersAtAllOpenExits();
-
-        }
-        else
-        {
-            if (!HasAnyValidPlacementForExit(chosen))
-            {
-                chosen.SetClosed(true);
-                chosen.label = "EXIT CERRADO";
-                _exitsArray[globalIdx] = chosen;
-                RelabelAvailableExits();
-                selectedExitIndex = 0;
-            }
-        }
+        for (int i = 0; i < connectionTries; i++) { if (TryAppendAtExit(chosen)) { success = true; break; } yield return null; }
+        if (success) { exits.MarkUsed(global); exits.Relabel(); if (autoSpawnRunnersOnAppend) runners.SpawnRunnersAtAllOpenExits(); }
+        else if (!HasAnyValidPlacementForExit(chosen)) { exits.MarkClosed(global); exits.Relabel(); selectedExitIndex = 0; }
     }
 
+    // ── Queries para UI ──────────────────────────────────────
     public List<PlacementPreview> GetPlacementPreviews()
     {
         var previews = new List<PlacementPreview>();
-        int globalIdx = GetGlobalExitIndexFromAvailable(selectedExitIndex);
-        if (globalIdx < 0 || _exitsCount == 0) return previews;
+        int global = exits.GlobalIndexFromAvailable(selectedExitIndex);
+        if (global < 0 || exits.Count == 0) return previews;
+        var chosen = exits.Get(global); if (chosen.Used) return previews;
 
-        ExitRecord chosen = _exitsArray[globalIdx];
-        if (chosen.Used) return previews;
-
-        var tile = GetPlacedTile(chosen.tileIndex);
-        var layoutPrev = tile.layout;
-        var exitCell = chosen.cell;
-
+        var prevTile = chain.Get(chosen.tileIndex); var layoutPrev = prevTile.layout; var exitCell = chosen.cell;
         if (!layoutPrev.IsInside(exitCell) || !layoutPrev.IsPath(exitCell)) return previews;
 
-        var nb = FindSinglePathNeighbor(layoutPrev, exitCell);
-        if (!nb.HasValue) return previews;
+        var nb = FindSinglePathNeighbor(layoutPrev, exitCell); if (!nb.HasValue) return previews;
+        Vector2Int dirOut = ClampToOrtho(orient.ApplyToDir(exitCell - nb.Value, prevTile.rotSteps, prevTile.flipped));
+        Vector3 prevExitWorld = prevTile.worldOrigin + orient.CellToWorldLocal(exitCell, layoutPrev, prevTile.rotSteps, prevTile.flipped);
 
-        Vector2Int dirOut = (exitCell - nb.Value);
-        dirOut = TileOrientationCalculator.ApplyOrientationToDir(dirOut, tile.rotSteps, tile.flipped);
-        dirOut = ClampToOrtho(dirOut);
-
-        Vector3 prevMin = tile.aabbMin;
-        Vector3 prevMax = tile.aabbMax;
-        Vector3 prevExitWorld = tile.worldOrigin + TileOrientationCalculator.CellToWorldLocal(exitCell, layoutPrev, tile.rotSteps, tile.flipped);
-
-        foreach (var candidate in candidateLayouts)
+        foreach (var (candidate, rot, flip) in candidates.GetValidCandidates(candidateLayouts, dirOut, allowRotations, allowFlip, orient))
         {
-            if (candidate == null) continue;
-
-            int rotMax = allowRotations ? 4 : 1;
-            for (int rot = 0; rot < rotMax; rot++)
-            {
-                int flipCount = allowFlip ? 2 : 1;
-                for (int f = 0; f < flipCount; f++)
-                {
-                    bool flip = allowFlip && (f == 1);
-                    var entry = candidate.entry;
-                    if (!candidate.IsInside(entry) || !candidate.IsPath(entry)) continue;
-
-                    var orientedData = orientationCalculator.GetOrientedData(candidate, rot, flip);
-                    float width = orientedData.w * candidate.cellSize;
-                    float height = orientedData.h * candidate.cellSize;
-
-                    bool okBorde = false;
-                    if (dirOut == Vector2Int.right) okBorde = (orientedData.entryOriented.x == 0);
-                    else if (dirOut == Vector2Int.left) okBorde = (orientedData.entryOriented.x == orientedData.w - 1);
-                    else if (dirOut == Vector2Int.up) okBorde = (orientedData.entryOriented.y == (worldPlusZUsesYZeroEdge ? 0 : orientedData.h - 1));
-                    else okBorde = (orientedData.entryOriented.y == (worldPlusZUsesYZeroEdge ? orientedData.h - 1 : 0));
-
-
-                    Vector3 newOrigin = ComputeNewOrigin(candidate, rot, orientedData.entryOriented, dirOut, prevMin, prevMax, prevExitWorld);
-                    ComputeAABB(newOrigin, orientedData.w, orientedData.h, candidate.cellSize, out var nMin, out var nMax);
-                    bool noOverlap = !spatialPartitioner.OverlapsAnyOptimized(nMin, nMax);
-
-                    var status = okBorde
-                        ? (noOverlap ? PreviewStatus.Valid : PreviewStatus.Overlap)
-                        : PreviewStatus.WrongEdge;
-
-                    previews.Add(new PlacementPreview
-                    {
-                        origin = newOrigin,
-                        sizeXZ = new Vector2(width, height),
-                        valid = (status == PreviewStatus.Valid),
-                        status = status,
-                        note = $"{candidate.name} | {rot * 90}° | flip={(flip ? 1 : 0)}",
-                        cellSize = candidate.cellSize
-                    });
-                }
-            }
+            var o = orient.GetOrientedData(candidate, rot, flip);
+            var newOrigin = placement.ComputeNewOrigin(candidate, rot, o.entryOriented, dirOut, prevTile.aabbMin, prevTile.aabbMax, prevExitWorld);
+            placement.ComputeAABB(newOrigin, o.w, o.h, candidate.cellSize, out var nMin, out var nMax);
+            bool noOverlap = !overlap.OverlapsAny(nMin, nMax);
+            var status = noOverlap ? PreviewStatus.Valid : PreviewStatus.Overlap;
+            previews.Add(new PlacementPreview { origin = newOrigin, sizeXZ = new Vector2(o.w * candidate.cellSize, o.h * candidate.cellSize), valid = noOverlap, status = status, note = $"{candidate.name} | {rot * 90}° | flip={(flip ? 1 : 0)}", cellSize = candidate.cellSize });
         }
-
         return previews;
     }
 
     public bool TryGetSelectedExitWorld(out Vector3 pos, out Vector2Int dirOutWorld)
     {
-        pos = Vector3.zero;
-        dirOutWorld = Vector2Int.zero;
+        pos = Vector3.zero; dirOutWorld = Vector2Int.zero;
+        int global = exits.GlobalIndexFromAvailable(selectedExitIndex);
+        if (global < 0 || exits.Count == 0) return false;
+        var chosen = exits.Get(global); if (chosen.Used) return false;
 
-        int globalIdx = GetGlobalExitIndexFromAvailable(selectedExitIndex);
-        if (globalIdx < 0 || _exitsCount == 0) return false;
-
-        ExitRecord chosen = _exitsArray[globalIdx];
-        if (chosen.Used) return false;
-
-        var tile = GetPlacedTile(chosen.tileIndex);
-        var layoutPrev = tile.layout;
-        var exitCell = chosen.cell;
-
+        var prevTile = chain.Get(chosen.tileIndex); var layoutPrev = prevTile.layout; var exitCell = chosen.cell;
         if (!layoutPrev.IsInside(exitCell) || !layoutPrev.IsPath(exitCell)) return false;
+        var nb = FindSinglePathNeighbor(layoutPrev, exitCell); if (!nb.HasValue) return false;
 
-        var nb = FindSinglePathNeighbor(layoutPrev, exitCell);
-        if (!nb.HasValue) return false;
-
-        Vector2Int d = (exitCell - nb.Value);
-        d = TileOrientationCalculator.ApplyInverseOrientationToDir(d, tile.rotSteps, tile.flipped);
-        d = ClampToOrtho(d);
-
-        pos = tile.worldOrigin + TileOrientationCalculator.CellToWorldLocal(exitCell, layoutPrev, tile.rotSteps, tile.flipped);
-        dirOutWorld = d;
-        return true;
+        Vector2Int d = ClampToOrtho(orient.ApplyInverseToDir(exitCell - nb.Value, prevTile.rotSteps, prevTile.flipped));
+        pos = prevTile.worldOrigin + orient.CellToWorldLocal(exitCell, layoutPrev, prevTile.rotSteps, prevTile.flipped);
+        dirOutWorld = d; return true;
     }
 
     public List<(string label, Vector3 worldPos)> GetAvailableExits()
     {
-        var list = new List<(string, Vector3)>();
-        for (int i = 0; i < _exitsCount; i++)
-        {
-            if (_exitsArray[i].Used || _exitsArray[i].Closed) continue;
-            var pt = GetPlacedTile(_exitsArray[i].tileIndex);
-            Vector3 wpos = pt.worldOrigin + TileOrientationCalculator.CellToWorldLocal(
-                _exitsArray[i].cell, pt.layout, pt.rotSteps, pt.flipped);
-            list.Add((_exitsArray[i].label, wpos));
-        }
-        return list;
+        return exits.GetAvailableWorld(chain.Get).ToList();
     }
 
     public List<string> GetAvailableExitLabels()
     {
-        var labels = new List<string>();
-        for (int i = 0; i < _exitsCount; i++)
-        {
-            if (!_exitsArray[i].Used && !_exitsArray[i].Closed)
-                labels.Add(_exitsArray[i].label);
-        }
-        return labels;
+        return exits.IndicesDisponibles().Select(i => exits.Get(i).label).ToList();
     }
 
-    public void CleanupCaches()
-    {
-        orientationCalculator?.ClearCache();
-        Resources.UnloadUnusedAssets();
-        System.GC.Collect();
-    }
-    #endregion
-
-    #region Métodos Públicos UI
     public void UI_SetExitIndex(int index) => selectedExitIndex = Mathf.Max(0, index);
-    public void UI_SetExitByLabel(string label)
-    {
-        int idx = GetAvailableExitIndexByLabel(label);
-        if (idx >= 0) selectedExitIndex = idx;
-    }
-
+    public void UI_SetExitByLabel(string label) { int idx = exits.AvailableIndexByLabel(label); if (idx >= 0) selectedExitIndex = idx; }
     public void UI_GenerateFirst() => GenerateFirst();
     public void UI_AppendNext() => AppendNextUsingSelectedExit();
     public void UI_AppendNextAsync() => StartCoroutine(AppendNextAsync());
-    public void UI_SetTileGap(float g) => tileGap = g;
-    public void UI_SetExtraOffsetX(float x) => extraTileOffset.x = x;
-    public void UI_SetExtraOffsetY(float y) => extraTileOffset.y = y;
-    public void UI_SetExtraOffsetZ(float z) => extraTileOffset.z = z;
-    public void UI_CleanupCaches() => CleanupCaches();
-    #endregion
 
-    #region Métodos Internos
-
-    private bool AppendTileToExit(ExitRecord chosen)
+    // ── Internals ────────────────────────────────────────────
+    private bool TryAppendAtExit(ExitRecord chosen)
     {
-        int tileIdx = chosen.tileIndex;
-        var tile = GetPlacedTile(tileIdx);
-        var layoutPrev = tile.layout;
-        var exitCell = chosen.cell;
+        var prevTile = chain.Get(chosen.tileIndex); var layoutPrev = prevTile.layout; var exitCell = chosen.cell;
+        if (!layoutPrev.IsInside(exitCell) || !layoutPrev.IsPath(exitCell)) return false;
+        var nb = FindSinglePathNeighbor(layoutPrev, exitCell); if (!nb.HasValue) return false;
 
-        if (!layoutPrev.IsInside(exitCell) || !layoutPrev.IsPath(exitCell))
-            return false;
+        Vector2Int dirOut = ClampToOrtho(orient.ApplyToDir(exitCell - nb.Value, prevTile.rotSteps, prevTile.flipped));
+        Vector3 prevExitWorld = prevTile.worldOrigin + orient.CellToWorldLocal(exitCell, layoutPrev, prevTile.rotSteps, prevTile.flipped);
 
-        var nb = FindSinglePathNeighbor(layoutPrev, exitCell);
-        if (!nb.HasValue)
-            return false;
-
-        Vector2Int dirOut = (exitCell - nb.Value);
-        dirOut = TileOrientationCalculator.ApplyOrientationToDir(dirOut, tile.rotSteps, tile.flipped);
-        dirOut = ClampToOrtho(dirOut);
-
-        Vector3 prevMin = tile.aabbMin;
-        Vector3 prevMax = tile.aabbMax;
-        Vector3 prevExitWorld = tile.worldOrigin + TileOrientationCalculator.CellToWorldLocal(exitCell, layoutPrev, tile.rotSteps, tile.flipped);
-
-        var validCandidates = GetValidCandidates(dirOut, prevMin, prevMax, prevExitWorld);
-
-        foreach (var (candidate, rot, flip) in validCandidates.Take(connectionTries))
+        var shuffled = candidates.GetValidCandidates(candidateLayouts, dirOut, allowRotations, allowFlip, orient).OrderBy(_ => rng.Next());
+        int attempts = 0;
+        foreach (var (candidate, rot, flip) in shuffled)
         {
-            var entry = candidate.entry;
-            if (!candidate.IsInside(entry) || !candidate.IsPath(entry)) continue;
+            var o = orient.GetOrientedData(candidate, rot, flip);
+            var newOrigin = placement.ComputeNewOrigin(candidate, rot, o.entryOriented, dirOut, prevTile.aabbMin, prevTile.aabbMax, prevExitWorld);
+            placement.ComputeAABB(newOrigin, o.w, o.h, candidate.cellSize, out var nMin, out var nMax);
+            if (overlap.OverlapsAny(nMin, nMax)) { attempts++; if (attempts >= connectionTries) break; continue; }
 
-            var orientedData = orientationCalculator.GetOrientedData(candidate, rot, flip);
-           
-            Vector3 newOrigin = ComputeNewOrigin(candidate, rot, orientedData.entryOriented, dirOut, prevMin, prevMax, prevExitWorld);
-            ComputeAABB(newOrigin, orientedData.w, orientedData.h, candidate.cellSize, out var nMin, out var nMax);
-
-            if (spatialPartitioner.OverlapsAnyOptimized(nMin, nMax)) continue;
-
-            var parent = CreateTileParent(tilesRoot, tileGroupBaseName + _chainCount);
-            int count = InstantiateLayout(candidate, newOrigin, rot, flip, parent);
-
-            var placed = new PlacedTile
-            {
-                layout = candidate,
-                worldOrigin = newOrigin,
-                rotSteps = rot,
-                flipped = flip,
-                parent = parent,
-                aabbMin = nMin,
-                aabbMax = nMax
-            };
-
-            AddToChain(placed);
-            spatialPartitioner.AddToSpatialGrid(placed, _chainCount - 1);
-            AddTileExitsToPool(_chainCount - 1, excludeAssetCell: candidate.entry);
-
-            Debug.Log($"[GridGenerator] Conectado via EXIT {chosen.label} (tile #{tileIdx}) → Nuevo tile #{_chainCount - 1} (rot={rot * 90}°, flip={flip}). Instancias: {count}");
+            var parent = CreateChild(tilesRoot, $"{tileGroupBaseName}{chain.Count}");
+            int count = instantiator.InstantiateLayout(candidate, newOrigin, rot, flip, parent);
+            var placed = new PlacedTile { layout = candidate, worldOrigin = newOrigin, rotSteps = rot, flipped = flip, parent = parent, aabbMin = nMin, aabbMax = nMax };
+            chain.Add(placed); overlap.Add(placed, chain.Count - 1);
+            AddTileExitsToPool(chain.Count - 1, candidate.entry);
+            Debug.Log($"[GridGenerator] Conectado via EXIT {chosen.label} → Nuevo tile #{chain.Count - 1} (rot={rot * 90}°, flip={flip}). Instancias: {count}");
             return true;
         }
-
         return false;
     }
 
-    private List<(TileLayout, int, bool)> GetValidCandidates(Vector2Int dirOut, Vector3 prevMin, Vector3 prevMax, Vector3 prevExitWorld)
+    private bool HasAnyValidPlacementForExit(ExitRecord chosen)
     {
-        var validCandidates = new List<(TileLayout, int, bool)>();
-        foreach (var candidate in candidateLayouts)
+        var prevTile = chain.Get(chosen.tileIndex); var layoutPrev = prevTile.layout; var exitCell = chosen.cell;
+        if (!layoutPrev.IsInside(exitCell) || !layoutPrev.IsPath(exitCell)) return false;
+        var nb = FindSinglePathNeighbor(layoutPrev, exitCell); if (!nb.HasValue) return false;
+        Vector2Int dirOut = ClampToOrtho(orient.ApplyToDir(exitCell - nb.Value, prevTile.rotSteps, prevTile.flipped));
+        Vector3 prevExitWorld = prevTile.worldOrigin + orient.CellToWorldLocal(exitCell, layoutPrev, prevTile.rotSteps, prevTile.flipped);
+
+        foreach (var (candidate, rot, flip) in candidates.GetValidCandidates(candidateLayouts, dirOut, allowRotations, allowFlip, orient))
         {
-            if (candidate == null) continue;
-
-            int rotMax = allowRotations ? 4 : 1;
-            for (int rot = 0; rot < rotMax; rot++)
-            {
-                int flipCount = allowFlip ? 2 : 1;
-                for (int f = 0; f < flipCount; f++)
-                {
-                    bool flip = allowFlip && (f == 1);
-                    var entry = candidate.entry;
-                    if (!candidate.IsInside(entry) || !candidate.IsPath(entry)) continue;
-
-                    var orientedData = orientationCalculator.GetOrientedData(candidate, rot, flip);
-
-                    bool okBorde = false;
-                    if (dirOut == Vector2Int.right) okBorde = (orientedData.entryOriented.x == 0);
-                    else if (dirOut == Vector2Int.left) okBorde = (orientedData.entryOriented.x == orientedData.w - 1);
-                    else if (dirOut == Vector2Int.up) okBorde = (orientedData.entryOriented.y == (worldPlusZUsesYZeroEdge ? 0 : orientedData.h - 1));
-                    else okBorde = (orientedData.entryOriented.y == (worldPlusZUsesYZeroEdge ? orientedData.h - 1 : 0));
-
-                    if (okBorde)
-                    {
-                        validCandidates.Add((candidate, rot, flip));
-                    }
-                }
-            }
+            var o = orient.GetOrientedData(candidate, rot, flip);
+            var newOrigin = placement.ComputeNewOrigin(candidate, rot, o.entryOriented, dirOut, prevTile.aabbMin, prevTile.aabbMax, prevExitWorld);
+            placement.ComputeAABB(newOrigin, o.w, o.h, candidate.cellSize, out var nMin, out var nMax);
+            if (!overlap.OverlapsAny(nMin, nMax)) return true;
         }
-        return validCandidates.OrderBy(x => _rng.Next()).ToList();
-    }
-
-    private IEnumerator AppendTileToExitAsync(ExitRecord chosen)
-    {
-        // Implementación asíncrona simplificada
-        yield return null;
-    }
-
-    private int InstantiateLayout(TileLayout layout, Vector3 worldOrigin, int rotSteps, bool flip, Transform parent)
-    {
-        var map = new Dictionary<Vector2Int, TileLayout.TileType>(layout.tiles.Count);
-        foreach (var t in layout.tiles)
-        {
-            if (t.grid.x < 0 || t.grid.x >= layout.gridWidth || t.grid.y < 0 || t.grid.y >= layout.gridHeight)
-                continue;
-            map[t.grid] = t.type;
-        }
-
-        // Obtener la celda del Core solo si hasCore es true
-        Vector2Int? coreCellToSkip = null;
-        if (layout.hasCore)
-        {
-            Vector2Int coreCell = layout.GetCoreCell();
-            Vector2Int coreOriented = TileOrientationCalculator.ApplyOrientationToCell(coreCell, layout, rotSteps, flip);
-            coreCellToSkip = coreOriented;
-        }
-
-        int count = 0;
-        for (int y = 0; y < layout.gridHeight; y++)
-        {
-            for (int x = 0; x < layout.gridWidth; x++)
-            {
-                var cell = new Vector2Int(x, y);
-                if (!map.TryGetValue(cell, out var type)) type = TileLayout.TileType.Grass;
-
-                Vector2Int orientedCell = TileOrientationCalculator.ApplyOrientationToCell(cell, layout, rotSteps, flip);
-
-                // Saltar la celda del Core solo si hasCore es true y es la celda correcta
-                if (layout.hasCore && coreCellToSkip.HasValue && orientedCell == coreCellToSkip.Value)
-                {
-                    Debug.Log($"[GridGenerator] Saltando tile en celda del Core: {cell} -> {orientedCell}");
-                    continue;
-                }
-
-                GameObject prefab;
-                if (type == TileLayout.TileType.Path)
-                {
-                    var mods = layout.GetPathModifiers(cell);
-                    prefab = ChoosePathPrefabForMods(mods.dps, mods.slow, mods.stun);
-                }
-                else
-                {
-                    prefab = grassPrefab;
-                }
-                if (!prefab) continue;
-
-                Vector3 basePos = worldOrigin + TileOrientationCalculator.CellToWorldLocal(cell, layout, rotSteps, flip);
-                Vector3 offset = (type == TileLayout.TileType.Path) ? pathCellOffset : grassCellOffset;
-
-                GameObject go;
-                if (tilePoolManager != null)
-                {
-                    go = tilePoolManager.GetPooledObject(prefab, basePos + offset,
-                        Quaternion.Euler(0f, rotSteps * 90f, 0f), parent);
-                }
-                else
-                {
-                    go = Instantiate(prefab, basePos + offset, Quaternion.Euler(0f, rotSteps * 90f, 0f), parent);
-                }
-
-                go.name = $"{prefab.name}_({x},{y})";
-                count++;
-
-                if (type == TileLayout.TileType.Grass)
-                {
-                    SetupGrassCell(go, layout);
-                }
-                else if (type == TileLayout.TileType.Path)
-                {
-                    // 1) Obtener modificadores desde el layout
-                    var mods = layout.GetPathModifiers(cell);
-
-                    // 2) Configurar el componente PathCellEffect
-                    var eff = go.GetComponent<PathCellEffect>();
-                    if (eff != null)
-                    {
-                        eff.Setup(mods.dps, mods.slow, mods.stun);
-                    }
-                }
-            }
-        }
-        return count;
-    }
-
-    private void SetupGrassCell(GameObject go, TileLayout layout)
-    {
-        go.tag = "Cell";
-        if (go.GetComponent<Collider>() == null)
-        {
-            var col = go.AddComponent<BoxCollider>();
-            col.size = new Vector3(layout.cellSize, 0.9f, layout.cellSize);
-            col.center = new Vector3(0f, 0.05f, 0f);
-        }
-
-        if (go.GetComponent<CellSlot>() == null)
-            go.AddComponent<CellSlot>();
-
-        go.layer = LayerMask.NameToLayer("Cell");
-    }
-
-    private void EnsureChainCapacity(int requiredCapacity)
-    {
-        if (_chainArray.Length >= requiredCapacity) return;
-
-        int newCapacity = Mathf.Max(_chainArray.Length * 2, requiredCapacity);
-        PlacedTile[] newArray = new PlacedTile[newCapacity];
-        Array.Copy(_chainArray, newArray, _chainCount);
-        _chainArray = newArray;
-    }
-
-    private void AddToChain(PlacedTile tile)
-    {
-        EnsureChainCapacity(_chainCount + 1);
-        _chainArray[_chainCount] = tile;
-        _chainCount++;
-    }
-
-    private void EnsureExitsCapacity(int requiredCapacity)
-    {
-        if (_exitsArray.Length >= requiredCapacity) return;
-
-        int newCapacity = Mathf.Max(_exitsArray.Length * 2, requiredCapacity);
-        ExitRecord[] newArray = new ExitRecord[newCapacity];
-        Array.Copy(_exitsArray, newArray, _exitsCount);
-        _exitsArray = newArray;
-    }
-
-    private void AddToExits(ExitRecord exit)
-    {
-        EnsureExitsCapacity(_exitsCount + 1);
-        _exitsArray[_exitsCount] = exit;
-        _exitsCount++;
+        return false;
     }
 
     private void AddTileExitsToPool(int tileIndex, Vector2Int? excludeAssetCell)
     {
-        var pt = GetPlacedTile(tileIndex);
-        var exits = pt.layout.exits ?? new List<Vector2Int>();
-        foreach (var ex in exits)
+        var pt = chain.Get(tileIndex); var exitsList = pt.layout.exits ?? new List<Vector2Int>();
+        foreach (var ex in exitsList)
         {
-            if (!pt.layout.IsInside(ex) || !pt.layout.IsPath(ex))
-                continue;
-            if (excludeAssetCell.HasValue && ex == excludeAssetCell.Value)
-                continue;
-
-            AddToExits(new ExitRecord
-            {
-                tileIndex = tileIndex,
-                cell = ex,
-                flags = 0,
-                label = ""
-            });
+            if (!pt.layout.IsInside(ex) || !pt.layout.IsPath(ex)) continue;
+            if (excludeAssetCell.HasValue && ex == excludeAssetCell.Value) continue;
+            exits.Add(new ExitRecord { tileIndex = tileIndex, cell = ex, flags = 0, label = string.Empty });
         }
-        RelabelAvailableExits();
+        exits.Relabel();
     }
 
-    private void RelabelAvailableExits()
+    private void ClearAll()
     {
-        int n = 0;
-        for (int i = 0; i < _exitsCount; i++)
-        {
-            if (_exitsArray[i].Used || _exitsArray[i].Closed) continue;
-            _exitsArray[i].label = IndexToLetters(n++);
-        }
+        // limpiar hijos (pools si existen)
+        if (tilePoolManager) { for (int i = tilesRoot.childCount - 1; i >= 0; i--) Destroy(tilesRoot.GetChild(i).gameObject); }
+        else { for (int i = tilesRoot.childCount - 1; i >= 0; i--) DestroyImmediate(tilesRoot.GetChild(i).gameObject); }
+
+        chain.Clear(); exits.Clear(); overlap.Clear(); core.ClearCore();
+
     }
 
-    private int GetGlobalExitIndexFromAvailable(int availableIdx)
+    private bool CheckPrefabs()
     {
-        int count = 0;
-        for (int i = 0; i < _exitsCount; i++)
-        {
-            if (_exitsArray[i].Used || _exitsArray[i].Closed) continue;
-            if (count == availableIdx) return i;
-            count++;
-        }
-        return -1;
+        bool ok = grassPrefab && pathBasicPrefab && pathDamagePrefab && pathSlowPrefab && pathStunPrefab;
+        if (!ok) Debug.LogError("[GridGenerator] Asigná todos los prefabs de path y grass.");
+        return ok;
     }
 
-    private int GetAvailableExitIndexByLabel(string label)
+    private static Transform EnsureRoot(Transform root, string rootName)
     {
-        int count = 0;
-        for (int i = 0; i < _exitsCount; i++)
-        {
-            if (_exitsArray[i].Used || _exitsArray[i].Closed) continue;
-            if (_exitsArray[i].label == label) return count;
-            count++;
-        }
-        return -1;
+        if (root) return root; var found = GameObject.Find(rootName); if (!found) found = new GameObject(rootName); return found.transform;
     }
 
-    private static string IndexToLetters(int index)
-    {
-        string s = "";
-        index += 1;
-        while (index > 0)
-        {
-            int rem = (index - 1) % 26;
-            s = (char)('A' + rem) + s;
-            index = (index - 1) / 26;
-        }
-        return s;
-    }
-
-    private Vector3 ComputeNewOrigin(
-     TileLayout candidate,
-     int rotSteps,
-     Vector2Int entryOriented,   // entry ya orientada (la que te da GetOrientedData)
-     Vector2Int dirOut,          // dirección de salida en mundo (cardinal)
-     Vector3 prevMin, Vector3 prevMax,   // no usados en esta versión
-     Vector3 prevExitWorld)
-    {
-        // Tamaño de celda del candidato
-        float cs = candidate.cellSize;
-
-        // Posición LOCAL (desde origin del tile) del centro de la celda 'entry' ya orientada
-        // Como entryOriented está en coords orientadas, basta multiplicar por cellSize
-        Vector3 entryLocal = new Vector3(entryOriented.x * cs, 0f, entryOriented.y * cs);
-
-        // Desplazamiento desde el EXIT anterior hacia afuera: 1 celda + gap
-        Vector3 outWorld = new Vector3(dirOut.x, 0f, dirOut.y) * (cs + tileGap);
-
-        // Queremos que el centro de 'entry' caiga exactamente en prevExitWorld + outWorld
-        Vector3 newOrigin = (prevExitWorld + outWorld) - entryLocal;
-
-        // Offset extra (si lo usás para fine-tune)
-        newOrigin += extraTileOffset;
-
-        return newOrigin;
-    }
-
-    private void ComputeAABB(Vector3 origin, int w, int h, float cellSize, out Vector3 min, out Vector3 max)
-    {
-        // origin es el CENTRO de la celda (0,0).
-        // El AABB debe empezar media celda antes y terminar media celda después.
-        Vector3 half = new Vector3(cellSize * 0.5f, 0f, cellSize * 0.5f);
-        Vector3 size = new Vector3(w * cellSize, 0f, h * cellSize);
-
-        min = origin - half;
-        max = origin - half + size;
-
-        // (opcional) margen para evitar falsos positivos por flotantes
-        // float eps = 1e-4f; max -= new Vector3(eps, 0f, eps);
-    }
-
+    private static Transform CreateChild(Transform root, string name)
+    { var go = new GameObject(name); go.transform.SetParent(root, false); return go.transform; }
 
     private static Vector2Int? FindSinglePathNeighbor(TileLayout layout, Vector2Int cell)
     {
         int count = 0; Vector2Int found = default;
-        foreach (var d in TileLayout.OrthoDirs)
-        {
-            var n = cell + d;
-            if (layout.IsPath(n)) { count++; found = n; }
-        }
+        foreach (var d in TileLayout.OrthoDirs) { var n = cell + d; if (layout.IsPath(n)) { count++; found = n; } }
         return count == 1 ? found : (Vector2Int?)null;
     }
 
     private static Vector2Int ClampToOrtho(Vector2Int v)
     {
-        if (Mathf.Abs(v.x) > Mathf.Abs(v.y))
-            return new Vector2Int(Mathf.Sign(v.x) >= 0 ? 1 : -1, 0);
-        if (Mathf.Abs(v.y) > 0)
-            return new Vector2Int(0, Mathf.Sign(v.y) >= 0 ? 1 : -1);
+        if (Mathf.Abs(v.x) > Mathf.Abs(v.y)) return new Vector2Int(Mathf.Sign(v.x) >= 0 ? 1 : -1, 0);
+        if (Mathf.Abs(v.y) > 0) return new Vector2Int(0, Mathf.Sign(v.y) >= 0 ? 1 : -1);
         return Vector2Int.up;
     }
 
-    private bool CheckPrefabs()
+    private static Transform CreateTileParent(Transform root, string name)
     {
-        if (grassPrefab == null || pathBasicPrefab == null || pathDamagePrefab == null || pathSlowPrefab == null || pathStunPrefab == null)
-        {
-            Debug.LogError("[GridGenerator] Asigná todos los prefabs de path y grass.");
-            return false;
-        }
-        return true;
-    }
-    private GameObject ChoosePathPrefabForMods(float damage, float slow, float stun)
-    {
-        // Prioridad: Stun > Slow > Damage > Basic
-        if (stun > 0f) return pathStunPrefab;
-        if (slow > 0f) return pathSlowPrefab;
-        if (damage > 0f) return pathDamagePrefab;
-        return pathBasicPrefab;
+        var go = new GameObject(name);
+        if (root != null)
+            go.transform.SetParent(root, false);
+        return go.transform;
     }
 
-
-    private void EnsureRoot()
-    {
-        if (tilesRoot == null)
-        {
-            var found = GameObject.Find(rootName);
-            if (found == null) found = new GameObject(rootName);
-            tilesRoot = found.transform;
-        }
-    }
 
     private void ClearRootChildren()
     {
-        if (tilePoolManager != null)
+        if (tilesRoot == null) return;
+
+        if (tilePoolManager == null)
         {
-            for (int i = tilesRoot.childCount - 1; i >= 0; i--)
-            {
-                var child = tilesRoot.GetChild(i);
-                var go = child.gameObject;
-
-                // ¿Grass?
-                if (go.CompareTag("Cell"))
-                {
-                    tilePoolManager.ReturnToPool(grassPrefab, go);
-                    continue;
-                }
-
-                // ¿Path? (miramos su PathCellEffect)
-                var eff = go.GetComponent<PathCellEffect>();
-                if (eff != null)
-                {
-                    // Si en tu PathCellEffect tenés 'damagePerHit/slow/stun':
-                    GameObject prefabRef;
-                    if (eff.stun > 0f) prefabRef = pathStunPrefab;
-                    else if (eff.slow > 0f) prefabRef = pathSlowPrefab;
-                    else if (eff.damagePerHit > 0) prefabRef = pathDamagePrefab;
-                    else prefabRef = pathBasicPrefab;
-
-                    tilePoolManager.ReturnToPool(prefabRef, go);
-                    continue;
-                }
-
-                // Fallback (si no encontramos nada reconocible)
-                Destroy(go);
-            }
-        }
-        else
-        {
+            // sin pooling → Destroy
 #if UNITY_EDITOR
             for (int i = tilesRoot.childCount - 1; i >= 0; i--)
                 DestroyImmediate(tilesRoot.GetChild(i).gameObject);
@@ -1023,82 +395,65 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         for (int i = tilesRoot.childCount - 1; i >= 0; i--)
             Destroy(tilesRoot.GetChild(i).gameObject);
 #endif
+            return;
         }
-    }
 
-    private Transform CreateTileParent(Transform root, string name)
-    {
-        var go = new GameObject(name);
-        go.transform.SetParent(root, false);
-        return go.transform;
-    }
-
-    private bool HasAnyValidPlacementForExit(ExitRecord chosen)
-    {
-        var tile = GetPlacedTile(chosen.tileIndex);
-        var layoutPrev = tile.layout;
-        var exitCell = chosen.cell;
-
-        if (!layoutPrev.IsInside(exitCell) || !layoutPrev.IsPath(exitCell)) return false;
-
-        var nb = FindSinglePathNeighbor(layoutPrev, exitCell);
-        if (!nb.HasValue) return false;
-
-        Vector2Int dirOut = (exitCell - nb.Value);
-        dirOut = TileOrientationCalculator.ApplyOrientationToDir(dirOut, tile.rotSteps, tile.flipped);
-        dirOut = ClampToOrtho(dirOut);
-
-        Vector3 prevMin = tile.aabbMin;
-        Vector3 prevMax = tile.aabbMax;
-        Vector3 prevExitWorld = tile.worldOrigin + TileOrientationCalculator.CellToWorldLocal(exitCell, layoutPrev, tile.rotSteps, tile.flipped);
-
-        foreach (var candidate in candidateLayouts)
+        // con pooling → devolver al pool cuando se pueda
+        for (int i = tilesRoot.childCount - 1; i >= 0; i--)
         {
-            if (candidate == null) continue;
+            var child = tilesRoot.GetChild(i).gameObject;
 
-            int rotMax = allowRotations ? 4 : 1;
-            for (int rot = 0; rot < rotMax; rot++)
+            // ¿Grass?
+            if (child.CompareTag("Cell"))
             {
-                int flipCount = allowFlip ? 2 : 1;
-                for (int f = 0; f < flipCount; f++)
-                {
-                    bool flip = allowFlip && (f == 1);
-                    var entry = candidate.entry;
-                    if (!candidate.IsInside(entry) || !candidate.IsPath(entry)) continue;
-
-                    var orientedData = orientationCalculator.GetOrientedData(candidate, rot, flip);
-                   
-
-                    bool okBorde = false;
-                    if (dirOut == Vector2Int.right) okBorde = (orientedData.entryOriented.x == 0);
-                    else if (dirOut == Vector2Int.left) okBorde = (orientedData.entryOriented.x == orientedData.w - 1);
-                    else if (dirOut == Vector2Int.up) okBorde = (orientedData.entryOriented.y == (worldPlusZUsesYZeroEdge ? 0 : orientedData.h - 1));
-                    else okBorde = (orientedData.entryOriented.y == (worldPlusZUsesYZeroEdge ? orientedData.h - 1 : 0));
-                    if (!okBorde) continue;
-
-                    Vector3 newOrigin = ComputeNewOrigin(candidate, rot, orientedData.entryOriented, dirOut, prevMin, prevMax, prevExitWorld);
-                    ComputeAABB(newOrigin, orientedData.w, orientedData.h, candidate.cellSize, out var nMin, out var nMax);
-
-                    if (!spatialPartitioner.OverlapsAnyOptimized(nMin, nMax))
-                        return true;
-                }
+                tilePoolManager.ReturnToPool(grassPrefab, child);
+                continue;
             }
-        }
-        return false;
-    }
-    #endregion
 
-    #region Métodos adicionales para ShiftingWorldUI
+            // ¿Path? (usa PathCellEffect para saber qué prefab es)
+            var eff = child.GetComponent<PathCellEffect>();
+            if (eff != null)
+            {
+                GameObject prefabRef;
+                if (eff.stun > 0f) prefabRef = pathStunPrefab;
+                else if (eff.slow > 0f) prefabRef = pathSlowPrefab;
+                else if (eff.damagePerHit > 0) prefabRef = pathDamagePrefab;
+                else prefabRef = pathBasicPrefab;
+
+                tilePoolManager.ReturnToPool(prefabRef, child);
+                continue;
+            }
+
+            // Fallback
+#if UNITY_EDITOR
+            DestroyImmediate(child);
+#else
+        Destroy(child);
+#endif
+        }
+    }
+
+    public TileLayout CurrentLayout
+    {
+        get
+        {
+            if (chain != null && chain.Count > 0)
+                return chain.Get(chain.Count - 1).layout;
+            return initialLayout;
+        }
+    }
+
     public List<TileLayout> GetRandomCandidateSet(int count)
     {
+        // Copia solo válidos
         var pool = new List<TileLayout>();
         foreach (var c in candidateLayouts)
             if (c != null) pool.Add(c);
 
-        // Fisher–Yates shuffle
+        // Fisher–Yates usando el rng ya declarado en tu GridGenerator
         for (int i = 0; i < pool.Count; i++)
         {
-            int j = _rng.Next(i, pool.Count);
+            int j = rng.Next(i, pool.Count);
             (pool[i], pool[j]) = (pool[j], pool[i]);
         }
 
@@ -1108,19 +463,101 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         return pool;
     }
 
+    public Vector3 CurrentWorldOrigin
+    {
+        get
+        {
+            if (chain != null && chain.Count > 0)
+                return chain.Get(chain.Count - 1).worldOrigin;
+            return Vector3.zero;
+        }
+    }
+
+    public int CurrentRotSteps
+    {
+        get
+        {
+            if (chain != null && chain.Count > 0)
+                return chain.Get(chain.Count - 1).rotSteps;
+            return 0;
+        }
+    }
+
+    public bool CurrentFlipped
+    {
+        get
+        {
+            if (chain != null && chain.Count > 0)
+                return chain.Get(chain.Count - 1).flipped;
+            return false;
+        }
+    }
+
+
+    public void UI_CleanupCaches()
+    {
+        exits.Clear();
+        chain.Clear();
+        overlap.Clear();
+        core?.ClearCore();
+        Debug.Log("[GridGenerator] Caches limpiados.");
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Compatibilidad con SpawnManager (API vieja del GridGenerator)
+    // ──────────────────────────────────────────────────────────────
+
+    // Devuelve todos los spawn points abiertos (exits no usados)
+    public List<Vector3> GetSpawnPoints()
+    {
+        return spawns != null ? spawns.GetSpawnPoints() : new List<Vector3>();
+    }
+
+    // Round-robin entre los spawn points abiertos
+    public Vector3 GetNextSpawnRoundRobin()
+    {
+        return spawns != null ? spawns.GetNextRoundRobin() : Vector3.zero;
+    }
+
+    // Ruta Exit -> Core usando el BFS interno
+    public bool TryGetRouteExitToCore(Vector3 exitWorldPos, out List<Vector3> route)
+    {
+        route = null;
+        return runners != null && runners.TryGetRouteExitToCore(exitWorldPos, out route);
+    }
+
+    // ¿Existe un core ya spawneado?
+    public bool HasCore()
+    {
+        return core != null && core.HasCore;
+    }
+
+    // Posición actual del core (o Vector3.zero si no hay)
+    public Vector3 GetCorePosition()
+    {
+        return core != null ? core.Position : Vector3.zero;
+    }
+
+    // Offset Y que usan los runners (para spawnear/routear flotando un poquito)
+    public float GetRunnerYOffset()
+    {
+        return runnerYOffset;
+    }
+
+
     public bool AppendNextUsingSelectedExitWithLayout(TileLayout forced)
     {
         if (forced == null) return false;
 
-        int globalIdx = GetGlobalExitIndexFromAvailable(selectedExitIndex);
-        if (globalIdx < 0 || _exitsCount == 0) return false;
+        int global = exits.GlobalIndexFromAvailable(selectedExitIndex);
+        if (global < 0 || exits.Count == 0) return false;
 
-        ExitRecord chosen = _exitsArray[globalIdx];
+        var chosen = exits.Get(global);
         if (chosen.Used || chosen.Closed) return false;
 
-        int tileIdx = chosen.tileIndex;
-        var tile = GetPlacedTile(tileIdx);
-        var layoutPrev = tile.layout;
+        // Tile previo y celda de salida
+        var prevTile = chain.Get(chosen.tileIndex);
+        var layoutPrev = prevTile.layout;
         var exitCell = chosen.cell;
 
         if (!layoutPrev.IsInside(exitCell) || !layoutPrev.IsPath(exitCell)) return false;
@@ -1128,44 +565,46 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
         var nb = FindSinglePathNeighbor(layoutPrev, exitCell);
         if (!nb.HasValue) return false;
 
-        Vector2Int dirOut = (exitCell - nb.Value);
-        dirOut = TileOrientationCalculator.ApplyInverseOrientationToDir(dirOut, tile.rotSteps, tile.flipped);
-        dirOut = ClampToOrtho(dirOut);
+        // Dirección de salida en mundo (cardinal)
+        Vector2Int dirOut = ClampToOrtho(orient.ApplyToDir(exitCell - nb.Value, prevTile.rotSteps, prevTile.flipped));
 
-        Vector3 prevMin = tile.aabbMin;
-        Vector3 prevMax = tile.aabbMax;
-        Vector3 prevExitWorld = tile.worldOrigin + TileOrientationCalculator.CellToWorldLocal(exitCell, layoutPrev, tile.rotSteps, tile.flipped);
+        // Posición mundo del exit previo
+        Vector3 prevExitWorld = prevTile.worldOrigin +
+                                orient.CellToWorldLocal(exitCell, layoutPrev, prevTile.rotSteps, prevTile.flipped);
 
         int rotMax = allowRotations ? 4 : 1;
+        int flipMax = allowFlip ? 2 : 1;
+
         for (int rot = 0; rot < rotMax; rot++)
         {
-            int flipCount = allowFlip ? 2 : 1;
-            for (int f = 0; f < flipCount; f++)
+            for (int f = 0; f < flipMax; f++)
             {
-                bool flip = allowFlip && (f == 1);
+                bool flip = (allowFlip && f == 1);
 
-                var entry = forced.entry;
-                if (!forced.IsInside(entry) || !forced.IsPath(entry)) continue;
+                // Datos orientados del layout forzado
+                var o = orient.GetOrientedData(forced, rot, flip);
 
-                var orientedData = orientationCalculator.GetOrientedData(forced, rot, flip);
-                float width = orientedData.w * forced.cellSize;
-                float height = orientedData.h * forced.cellSize;
-
+                // Chequeo de borde válido para la 'entry' orientada
                 bool okBorde = false;
-                if (dirOut == Vector2Int.right) okBorde = (orientedData.entryOriented.x == 0);
-                if (dirOut == Vector2Int.left) okBorde = (orientedData.entryOriented.x == orientedData.w - 1);
-                if (dirOut == Vector2Int.up) okBorde = (orientedData.entryOriented.y == 0);
-                if (dirOut == Vector2Int.down) okBorde = (orientedData.entryOriented.y == orientedData.h - 1);
+                if (dirOut == Vector2Int.right) okBorde = (o.entryOriented.x == 0);
+                else if (dirOut == Vector2Int.left) okBorde = (o.entryOriented.x == o.w - 1);
+                else if (dirOut == Vector2Int.up) okBorde = (o.entryOriented.y == (worldPlusZUsesYZeroEdge ? 0 : o.h - 1));
+                else okBorde = (o.entryOriented.y == (worldPlusZUsesYZeroEdge ? o.h - 1 : 0));
+
                 if (!okBorde) continue;
 
-                Vector3 newOrigin = ComputeNewOrigin(forced, rot, orientedData.entryOriented, dirOut, prevMin, prevMax, prevExitWorld);
-                Vector3 nMin = newOrigin;
-                Vector3 nMax = newOrigin + new Vector3(width, 0f, height);
+                // Nuevo origen alineando 'entry' con el exit anterior + gap
+                var newOrigin = placement.ComputeNewOrigin(
+                                    forced, rot, o.entryOriented, dirOut,
+                                    prevTile.aabbMin, prevTile.aabbMax, prevExitWorld);
 
-                if (spatialPartitioner.OverlapsAnyOptimized(nMin, nMax)) continue;
+                // AABB y chequeo de solape
+                placement.ComputeAABB(newOrigin, o.w, o.h, forced.cellSize, out var nMin, out var nMax);
+                if (overlap.OverlapsAny(nMin, nMax)) continue;
 
-                var parent = CreateTileParent(tilesRoot, tileGroupBaseName + _chainCount);
-                int count = InstantiateLayout(forced, newOrigin, rot, flip, parent);
+                // Instanciar y registrar
+                var parent = CreateTileParent(tilesRoot, $"{tileGroupBaseName}{chain.Count}");
+                int count = instantiator.InstantiateLayout(forced, newOrigin, rot, flip, parent);
 
                 var placed = new PlacedTile
                 {
@@ -1178,453 +617,30 @@ public class GridGenerator : MonoBehaviour, ITileGenerator
                     aabbMax = nMax
                 };
 
-                AddToChain(placed);
-                spatialPartitioner.AddToSpatialGrid(placed, _chainCount - 1);
-                chosen.SetUsed(true);
-                _exitsArray[globalIdx] = chosen;
-                RelabelAvailableExits();
-                AddTileExitsToPool(_chainCount - 1, excludeAssetCell: forced.entry);
+                chain.Add(placed);
+                overlap.Add(placed, chain.Count - 1);
+
+                // Registrar exits del nuevo tile (excluyendo la entry)
+                AddTileExitsToPool(chain.Count - 1, forced.entry);
+
+                // Marcar el exit elegido como usado y relabel
+                exits.MarkUsed(global);
+                exits.Relabel();
 
                 Debug.Log($"[GridGenerator] Conectado con layout forzado {forced.name} (rot={rot * 90}°, flip={flip}). Instancias: {count}");
                 return true;
             }
         }
 
+        // Si ninguna orientación es válida, cerramos el exit si no hay forma
         if (!HasAnyValidPlacementForExit(chosen))
         {
-            chosen.SetClosed(true);
-            chosen.label = "EXIT CERRADO";
-            _exitsArray[globalIdx] = chosen;
-            RelabelAvailableExits();
+            exits.MarkClosed(global);
+            exits.Relabel();
             selectedExitIndex = 0;
         }
-        return false;
-    }
-    #endregion
 
-    #region Métodos para Spawn en Finales de Camino
-
-    // Método principal: Obtener puntos de spawn en finales de camino (exits abiertos)
-    public List<Vector3> GetSpawnPoints()
-    {
-        var result = new List<Vector3>();
-
-        // 1) Tomamos exits abiertos (los que todavía no se usaron ni cerraron)
-        var openExits = GetOpenExitWorldPositions();
-
-        // 2) Filtramos por distancia al Core y vecinos del Core si se pide
-        Transform core = GameObject.FindGameObjectWithTag("Core")?.transform;
-        foreach (var w in openExits)
-        {
-            if (excludeCoreNeighbors && IsCoreNeighborWorld(w))
-                continue;
-
-            if (core && minDistanceToCore > 0f)
-            {
-                if (Vector3.Distance(new Vector3(w.x, 0f, w.z), new Vector3(core.position.x, 0f, core.position.z)) < minDistanceToCore)
-                    continue;
-            }
-
-            // Evitar duplicados por floating point
-            bool duplicate = false;
-            for (int i = 0; i < result.Count; i++)
-            {
-                if (Vector3.Distance(result[i], w) < 0.05f) { duplicate = true; break; }
-            }
-            if (!duplicate) result.Add(w);
-        }
-
-        // 3) Fallback si no hay
-        if (result.Count == 0)
-            result = GetFallbackSpawnPoints();
-
-        // 4) Guardamos en cache pública si querés consultarlo desde afuera
-        spawnPoints = new List<Vector3>(result);
-        return result;
-    }
-    /// <summary>Devuelve el próximo spawn point en round-robin.</summary>
-    public Vector3 GetNextSpawnRoundRobin()
-    {
-        var points = GetSpawnPoints();
-        if (points.Count == 0) return Vector3.zero;
-        if (_spawnRR < 0) _spawnRR = 0;
-        var idx = _spawnRR % points.Count;
-        _spawnRR = (_spawnRR + 1) % points.Count;
-        var chosen = points[idx];
-        MarkSpawnUsed(chosen);
-        return chosen;
-    }
-    private void OnDrawGizmos()
-    {
-        if (!drawExitGizmos) return;
-
-        // Core
-        var core = GameObject.FindGameObjectWithTag("Core")?.transform;
-        if (core)
-        {
-            Gizmos.color = colorCore;
-            Gizmos.DrawCube(new Vector3(core.position.x, exitGizmoY, core.position.z), Vector3.one * (exitSphereRadius * 1.2f));
-#if UNITY_EDITOR
-            if (drawExitLabels)
-                UnityEditor.Handles.Label(core.position + Vector3.up * (exitSphereRadius * 1.6f), "CORE", new GUIStyle(UnityEditor.EditorStyles.boldLabel) { fontSize = 11 });
-#endif
-        }
-
-        // Exits abiertos (verdes)
-        var open = GetOpenExitWorldPositions();
-        Gizmos.color = colorOpenExit;
-        for (int i = 0; i < open.Count; i++)
-        {
-            var p = open[i]; p.y = exitGizmoY;
-            Gizmos.DrawWireSphere(p, exitSphereRadius);
-#if UNITY_EDITOR
-            if (drawExitLabels)
-                UnityEditor.Handles.Label(p + Vector3.up * (exitSphereRadius * 1.4f), $"EXIT {i}", new GUIStyle(UnityEditor.EditorStyles.boldLabel) { fontSize = 11 });
-#endif
-        }
-
-        // Exits usados o cerrados (naranja)
-        Gizmos.color = colorUsedOrClosedExit;
-        for (int i = 0; i < _exitsCount; i++)
-        {
-            var ex = _exitsArray[i];
-            if (!ex.Used && !ex.Closed) continue;
-            var p = ExitToWorld(ex); p.y = exitGizmoY;
-            Gizmos.DrawSphere(p, exitSphereRadius * 0.85f);
-#if UNITY_EDITOR
-            if (drawExitLabels)
-                UnityEditor.Handles.Label(p + Vector3.up * (exitSphereRadius * 1.1f), ex.Closed ? "CERRADO" : "USADO", new GUIStyle(UnityEditor.EditorStyles.miniBoldLabel));
-#endif
-        }
-
-        // Últimos usados (amarillo)
-        Gizmos.color = colorLastUsed;
-        foreach (var u in _lastUsedSpawns)
-        {
-            var p = new Vector3(u.x, exitGizmoY, u.z);
-            Gizmos.DrawSphere(p, exitSphereRadius * 0.7f);
-#if UNITY_EDITOR
-            if (drawExitLabels)
-                UnityEditor.Handles.Label(p + Vector3.up * (exitSphereRadius * 0.9f), "used", new GUIStyle(UnityEditor.EditorStyles.miniBoldLabel));
-#endif
-        }
-    }
-
-
-    // Verificar si una celda es válida para spawn
-    private bool IsValidSpawnPoint(PlacedTile tile, Vector2Int cell)
-    {
-        if (!tile.layout.IsInside(cell) || !tile.layout.IsPath(cell))
-            return false;
-
-        return CountPathNeighbors(tile, cell) == 1;
-    }
-
-    private int CountPathNeighbors(PlacedTile tile, Vector2Int cell)
-    {
-        int pathNeighbors = 0;
-        foreach (var dir in TileLayout.OrthoDirs)
-        {
-            var neighbor = cell + dir;
-            if (tile.layout.IsInside(neighbor) && tile.layout.IsPath(neighbor))
-            {
-                pathNeighbors++;
-            }
-        }
-        return pathNeighbors;
-    }
-
-    private Vector3 CalculateWorldPosition(PlacedTile tile, Vector2Int cell)
-    {
-        return tile.worldOrigin +
-            TileOrientationCalculator.CellToWorldLocal(cell, tile.layout, tile.rotSteps, tile.flipped);
-    }
-
-    private bool IsDuplicateSpawnPoint(Vector3 newPoint, List<Vector3> existingPoints, float threshold = 0.1f)
-    {
-        foreach (var point in existingPoints)
-        {
-            if (Vector3.Distance(point, newPoint) < threshold)
-                return true;
-        }
         return false;
     }
 
-    private List<Vector3> GetFallbackSpawnPoints()
-    {
-        var fallbackPoints = new List<Vector3>();
-
-        if (_chainCount > 0)
-        {
-            var lastTile = GetPlacedTile(_chainCount - 1);
-            if (lastTile.layout?.exits != null)
-            {
-                foreach (var exitCell in lastTile.layout.exits)
-                {
-                    Vector3 worldPos = CalculateWorldPosition(lastTile, exitCell);
-                    fallbackPoints.Add(worldPos);
-                }
-            }
-
-            if (fallbackPoints.Count == 0)
-            {
-                Vector3 cornerPos = lastTile.worldOrigin + new Vector3(lastTile.layout.cellSize, 0, lastTile.layout.cellSize);
-                fallbackPoints.Add(cornerPos);
-            }
-        }
-
-        Debug.LogWarning("[Spawn] Usando spawn points de fallback");
-        return fallbackPoints;
-    }
-
-    public void DebugSpawnPoints()
-    {
-        var spawnPoints = GetSpawnPoints();
-        Debug.Log($"=== SPAWN POINTS DEBUG ===");
-        Debug.Log($"Total points: {spawnPoints.Count}");
-
-        for (int i = 0; i < spawnPoints.Count; i++)
-        {
-            Debug.Log($"Point {i}: {spawnPoints[i]}");
-        }
-    }
-    #endregion
-    // Devuelve la posición del Core si existe
-    private bool TryGetCoreTransform(out Transform coreT)
-    {
-        coreT = null;
-        if (spawnedCore != null) { coreT = spawnedCore.transform; return true; }
-        var coreGo = GameObject.FindGameObjectWithTag("Core");
-        if (coreGo) { coreT = coreGo.transform; return true; }
-        return false;
-    }
-
-    // Spawnea UN runner en un punto de inicio específico
-   /* private void SpawnExitRunnerAt(Vector3 startWorldPos)
-    {
-        if (exitRunnerPrefab == null)
-        {
-            Debug.LogWarning("[GridGenerator] exitRunnerPrefab no asignado.");
-            return;
-        }
-        if (!TryGetCoreTransform(out var coreT))
-        {
-            Debug.LogWarning("[GridGenerator] No hay Core en escena para dirigir el runner.");
-            return;
-        }
-
-        // Ajuste de altura para que no quede "pegado" al piso
-        var spawnPos = new Vector3(startWorldPos.x, startWorldPos.y + exitRunnerHeightOffset, startWorldPos.z);
-        var go = Instantiate(exitRunnerPrefab, spawnPos, Quaternion.identity, tilesRoot);
-        go.name = "ExitRunner";
-
-        var runner = go.GetComponent<Enemy>();
-        if (!runner) runner = go.AddComponent<Enemy>();
-
-        runner.Init(coreT, exitRunnerSpeed);
-    }
-    private void SpawnRunnerAtExit(Vector3 startWorldPos)
-    {
-        if (exitRunnerPrefab == null)
-        {
-            Debug.LogWarning("[GridGenerator] exitRunnerPrefab no asignado.");
-            return;
-        }
-
-        // Core: primero el instanciado, si no, por tag
-        Transform coreT = null;
-        if (spawnedCore != null) coreT = spawnedCore.transform;
-        else
-        {
-            var coreGo = GameObject.FindGameObjectWithTag("Core");
-            if (coreGo) coreT = coreGo.transform;
-        }
-        if (coreT == null)
-        {
-            Debug.LogWarning("[GridGenerator] No hay Core en escena, el Runner no tendrá destino.");
-            // igual lo instanciamos; ExitRunner se autoconfigurará si aparece un Core luego
-        }
-
-        Vector3 spawnPos = startWorldPos + Vector3.up * exitRunnerHeightOffset;
-        var go = Instantiate(exitRunnerPrefab, spawnPos, Quaternion.identity);
-        go.name = "ExitRunner";
-
-        var runner = go.GetComponent<ExitRunner>();
-        if (runner == null) runner = go.AddComponent<ExitRunner>();
-        runner.Init(coreT, Mathf.Max(0.01f, exitRunnerSpeed));
-    }*/
-
-    // Spawnea runners en TODOS los exits abiertos actuales
-    public void SpawnRunnersAtAllOpenExits()
-    {
-        var exits = GetAvailableExits(); // (label, worldPos) SOLO los no usados/ni cerrados
-        if (exits.Count == 0)
-        {
-            Debug.Log("[GridGenerator] No hay exits abiertos para spawnear runners.");
-            return;
-        }
-
-        foreach (var (_, worldPos) in exits)
-            SpawnRunnerFollowingPath(worldPos);
-    }
-    // Suponemos un cellSize único en layouts (si los tuyos varían, avisame y lo adapto)
-    private float GlobalCellSize => (_chainCount > 0 && _chainArray[0].layout) ? _chainArray[0].layout.cellSize : 1f;
-
-    private Vector3 SnapToCell(Vector3 w)
-    {
-        float cs = Mathf.Max(0.0001f, GlobalCellSize);
-        float x = Mathf.Round(w.x / cs) * cs;
-        float z = Mathf.Round(w.z / cs) * cs;
-        return new Vector3(x, spawnedCore ? spawnedCore.transform.position.y : w.y, z);
-    }
-
-    private Vector3Int WorldToKey(Vector3 w)
-    {
-        float cs = Mathf.Max(0.0001f, GlobalCellSize);
-        return new Vector3Int(Mathf.RoundToInt(w.x / cs), 0, Mathf.RoundToInt(w.z / cs));
-    }
-
-    private Vector3 KeyToWorld(Vector3Int k)
-    {
-        float cs = Mathf.Max(0.0001f, GlobalCellSize);
-        return new Vector3(k.x * cs, spawnedCore ? spawnedCore.transform.position.y : 0f, k.z * cs);
-    }
-    // Devuelve set de nodos (keys) y adyacencia 4-dir
-    private void BuildPathGraph(out HashSet<Vector3Int> nodes, out Dictionary<Vector3Int, List<Vector3Int>> adj)
-    {
-        nodes = new HashSet<Vector3Int>();
-        adj = new Dictionary<Vector3Int, List<Vector3Int>>();
-
-        float cs = GlobalCellSize;
-
-        // 1) registrar cada celda Path como nodo
-        for (int i = 0; i < _chainCount; i++)
-        {
-            var pt = _chainArray[i];
-            if (pt.layout == null) continue;
-
-            foreach (var t in pt.layout.tiles)
-            {
-                if (t.type != TileLayout.TileType.Path) continue;
-
-                // celda orientada -> world center
-                var w = pt.worldOrigin + TileOrientationCalculator.CellToWorldLocal(
-                    t.grid, pt.layout, pt.rotSteps, pt.flipped);
-
-                var k = WorldToKey(w);
-                if (nodes.Add(k))
-                    adj[k] = new List<Vector3Int>();
-            }
-        }
-
-        // 2) conectar vecinos ortogonales
-        var dirs = new Vector3Int[]
-        {
-        new Vector3Int( 1,0, 0), new Vector3Int(-1,0, 0),
-        new Vector3Int( 0,0, 1), new Vector3Int( 0,0,-1),
-        };
-
-        foreach (var k in nodes)
-        {
-            foreach (var d in dirs)
-            {
-                var nb = new Vector3Int(k.x + d.x, 0, k.z + d.z);
-                if (nodes.Contains(nb))
-                    adj[k].Add(nb);
-            }
-        }
-    }
-    private bool TryBuildRouteExitToCore(Vector3 exitWorld, out List<Vector3> route)
-    {
-        route = null;
-        if (spawnedCore == null) return false;
-
-        BuildPathGraph(out var nodes, out var adj);
-
-        var startKey = WorldToKey(SnapToCell(exitWorld));
-        var goalKey = WorldToKey(SnapToCell(spawnedCore.transform.position));
-
-        if (!nodes.Contains(startKey) || !nodes.Contains(goalKey))
-        {
-            // Si el EXIT o el CORE no caen exactamente en nodos, intentá “snapear” a vecinos inmediatos
-            // (simple: si no está, abortamos y que vaya en línea recta como fallback)
-            return false;
-        }
-
-        // BFS
-        var q = new Queue<Vector3Int>();
-        var prev = new Dictionary<Vector3Int, Vector3Int>();
-        var visited = new HashSet<Vector3Int>();
-
-        q.Enqueue(startKey);
-        visited.Add(startKey);
-
-        bool found = false;
-        while (q.Count > 0)
-        {
-            var u = q.Dequeue();
-            if (u == goalKey) { found = true; break; }
-
-            foreach (var v in adj[u])
-            {
-                if (visited.Contains(v)) continue;
-                visited.Add(v);
-                prev[v] = u;
-                q.Enqueue(v);
-            }
-        }
-
-        if (!found) return false;
-
-        // reconstruir path
-        var keys = new List<Vector3Int>();
-        for (var cur = goalKey; ;)
-        {
-            keys.Add(cur);
-            if (cur == startKey) break;
-            cur = prev[cur];
-        }
-        keys.Reverse();
-
-        // A world + pequeño offset Y para que “flote” un toque
-        route = new List<Vector3>(keys.Count);
-        foreach (var k in keys)
-        {
-            var w = KeyToWorld(k);
-            w.y += runnerYOffset;
-            route.Add(w);
-        }
-        return route.Count > 0;
-    }
-    private void SpawnRunnerFollowingPath(Vector3 exitWorldPos)
-    {
-        if (exitRunnerPrefab == null)
-        {
-            Debug.LogWarning("[GridGenerator] exitRunnerPrefab no asignado.");
-            return;
-        }
-
-        if (!TryBuildRouteExitToCore(exitWorldPos, out var path))
-        {
-            // Fallback: si no se pudo armar ruta, usá el primer y último punto para que no quede clavado
-            path = new List<Vector3> { exitWorldPos + Vector3.up * runnerYOffset };
-            if (spawnedCore) path.Add(new Vector3(spawnedCore.transform.position.x,
-                                                  (spawnedCore.transform.position.y + runnerYOffset),
-                                                  spawnedCore.transform.position.z));
-        }
-
-        var go = Instantiate(exitRunnerPrefab, path[0], Quaternion.identity);
-        go.name = "Enemy";
-
-        var mover = go.GetComponent<Enemy>();
-        if (mover == null) mover = go.AddComponent<Enemy>();
-        mover.Init(path);
-    }
-    public float GetRunnerYOffset() => runnerYOffset;
-
-    // Wrapper público a la ruta Exit->Core usando tu BFS interno
-    public bool TryGetRouteExitToCore(Vector3 exitWorldPos, out List<Vector3> route)
-    {
-        return TryBuildRouteExitToCore(exitWorldPos, out route);
-    }
 }

@@ -69,6 +69,15 @@ public class ShiftingWorldUI : MonoBehaviour
     [SerializeField] private Image otherWorldFill;    // 0..1
     [SerializeField] private Image worldToggleCooldownFill; // 0..1 (recarga)
 
+  
+    private void OnValidate()
+    {
+        // Auto-cablear cosas típicas si faltan
+        if (!grid) grid = FindFirstObjectByType<GridGenerator>();
+        if (!cam) cam = Camera.main;
+    }
+
+
     // --- NUEVO: helper para trackear cada botón ---
     private class ExitBtn
     {
@@ -81,7 +90,7 @@ public class ShiftingWorldUI : MonoBehaviour
     private readonly List<ExitBtn> exitBtnInfo = new();
 
     // Altura en MUNDO (se multiplica por cellSize)
-    [SerializeField] private float buttonWorldYOffset = 1.0f;
+    [SerializeField] private float buttonWorldYOffset = 2.0f;
 
     // Altura extra en PANTALLA (pixeles) para Overlay/Camera
     [SerializeField] private float buttonScreenYOffset = 24f;
@@ -109,7 +118,6 @@ public class ShiftingWorldUI : MonoBehaviour
         {
             var camToUse = cam ? cam : Camera.main;
 
-            // Billboard sólo para World Space
             if (exitButtonsCanvas.renderMode == RenderMode.WorldSpace)
             {
                 var toCam = camToUse.transform.position - exitButtonsCanvas.transform.position;
@@ -129,7 +137,6 @@ public class ShiftingWorldUI : MonoBehaviour
                 );
             }
         }
-
 
     }
 
@@ -248,17 +255,13 @@ public class ShiftingWorldUI : MonoBehaviour
         exitButtonsCanvas.gameObject.SetActive(true);
     }
 
-    private float GetWorldYOffset()
-    {
-        // Levantar según cellSize para que se vea bien con distintos tiles
-        var layout = grid ? grid.CurrentLayout : null;
-        float cs = layout ? layout.cellSize : 1f;
-        return buttonWorldYOffset * cs;
-    }
-
 
     private void SetExitButtonPosition(
-     RectTransform rect, Vector3 world, Canvas canvas, RectTransform canvasRect, Camera camToUse)
+        RectTransform rect,
+        Vector3 world,
+        Canvas canvas,
+        RectTransform canvasRect,
+        Camera camToUse)
     {
         switch (canvas.renderMode)
         {
@@ -293,8 +296,16 @@ public class ShiftingWorldUI : MonoBehaviour
     }
 
 
+    private float GetWorldYOffset()
+    {
+        // Levantar según cellSize para que se vea bien con distintos tiles
+        var layout = grid ? grid.CurrentLayout : null;
+        float cs = layout ? layout.cellSize : 1f;
+        return buttonWorldYOffset * cs;
+    }
 
-    private void OnExitButtonClicked(string exitLabel)
+
+private void OnExitButtonClicked(string exitLabel)
     {
         if (!selectedTileLayout) return;
 
