@@ -139,7 +139,25 @@ public class WaveManager : MonoBehaviour
         UIController.Instance?.UpdateEnemiesRemaining(enemiesAlive);
 
     }
+    public void ForceStartNextWave()
+    {
+        // Si hay una oleada activa o ya se alcanzó la última, no hacemos nada
+        if (waveStarted || WaveInProgress || IsLastWave())
+        {
+            Debug.Log("[WaveManager] No se puede forzar una nueva oleada ahora.");
+            return;
+        }
 
+        // Cancelar countdown si estaba corriendo
+        if (nextWaveCountdownCo != null)
+        {
+            StopCoroutine(nextWaveCountdownCo);
+            nextWaveCountdownCo = null;
+        }
+
+        Debug.Log("[WaveManager] Iniciando siguiente oleada manualmente (botón StartWaveButton).");
+        StartNextWave();
+    }
     public void NotifyEnemyKilled()
     {
         enemiesAlive = Mathf.Max(0, enemiesAlive - 1);

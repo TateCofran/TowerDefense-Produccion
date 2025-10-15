@@ -141,8 +141,8 @@ public class UIController : MonoBehaviour
 
     private void OnNextWaveButtonClicked()
     {
-        if (WaveManager.Instance != null)
-            WaveManager.Instance.StartNextWave();
+        if (WaveManager.Instance == null) return;
+        WaveManager.Instance.ForceStartNextWave();
     }
 
     // =========================
@@ -164,7 +164,7 @@ public class UIController : MonoBehaviour
         // Terminó la oleada: mostramos countdown y deshabilitamos botón hasta que esté "Ready!"
         SetNextWaveCountdownVisible(true);
         SetNextWaveButtonVisible(true);
-        SetNextWaveButtonInteractable(false);
+        SetNextWaveButtonInteractable(true);   // <— habilitado apenas termina la oleada
     }
 
     private void HandleEnemiesRemainingChanged(int enemiesLeft)
