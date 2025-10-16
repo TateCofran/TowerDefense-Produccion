@@ -7,15 +7,25 @@ public class WorldSwitchPoints : MonoBehaviour
     [Tooltip("Arrastra el ShiftingWorldMechanic de la escena.")]
     [SerializeField] private ShiftingWorldMechanic mechanic;
 
-    [Header("Esencias otorgadas al QUEDAR en cada mundo")]
-    [Tooltip("Al cambiar y quedar en el mundo Normal esencias AZULES ganadas.")]
+    [Header("Esencias base al cambiar de mundo")]
+    [Tooltip("Al quedar en el mundo Normal - esencias AZULES ganadas.")]
     [SerializeField] private int essencesOnNormal = 1;
-    [Tooltip("Al cambiar y quedar en el Otro Mundo esencias ROJAS ganadas.")]
+    [Tooltip("Al quedar en el Otro Mundo - esencias ROJAS ganadas.")]
     [SerializeField] private int essencesOnOther = 1;
 
+    [Header("Bonos de mejoras permanentes")]
+    [Tooltip("ID de la mejora del Lab que aumenta las esencias AZULES al cambiar de mundo.")]
+    [SerializeField] private string labBlueUpgradeId = "upgrade_moreEssencePerSwitchTile";
+    [Tooltip("Bonus plano o multiplicador por nivel (ej: 0.1 = +10% por nivel).")]
+    [Range(0f, 5f)][SerializeField] private float blueBonusPerLevel = 0.1f;
+
+    [Tooltip("ID de la mejora del Workshop que aumenta las esencias ROJAS al cambiar de mundo.")]
+    [SerializeField] private string workshopRedUpgradeId = "upgrade_moreEssencePerSwitchTurret";
+    [Range(0f, 5f)][SerializeField] private float redBonusPerLevel = 0.1f;
+
     [Header("Totales")]
-    [SerializeField] private int totalBlueEssences = 0; // Normal
-    [SerializeField] private int totalRedEssences = 0; // Other
+    [SerializeField] private int totalBlueEssences = 0;
+    [SerializeField] private int totalRedEssences = 0;
 
     [System.Serializable] public class EssenceEvent : UnityEvent<int, int> { }
     public EssenceEvent OnBlueEssenceGained;
@@ -41,12 +51,12 @@ public class WorldSwitchPoints : MonoBehaviour
     {
         if (mechanic == null)
         {
-            Debug.LogWarning("[WorldSwitchEssences] No se encontro ShiftingWorldMechanic en la escena.");
+            Debug.LogWarning("[WorldSwitchPoints] No se encontró ShiftingWorldMechanic en la escena.");
             enabled = false;
             return;
         }
 
-        _lastWorld = mechanic.GetCurrentWorld(); // necesita el getter del mundo actual
+        _lastWorld = mechanic.GetCurrentWorld();
         _init = true;
     }
 
@@ -57,25 +67,37 @@ public class WorldSwitchPoints : MonoBehaviour
         var current = mechanic.GetCurrentWorld();
         if (current != _lastWorld)
         {
-            // Cambio detectado  sumar según mundo DESTINO
             if (current == ShiftingWorldMechanic.World.Normal)
             {
-                totalBlueEssences += essencesOnNormal;
-                OnBlueEssenceGained?.Invoke(essencesOnNormal, totalBlueEssences);
-                // Debug.Log($"+{essencesOnNormal} esencia(s) AZUL. Total: {totalBlueEssences}");
+                int amount = CalculateBlueEssence();
+                AddBlueEssence(amount);
             }
             else
             {
-                totalRedEssences += essencesOnOther;
-                OnRedEssenceGained?.Invoke(essencesOnOther, totalRedEssences);
-                // Debug.Log($"+{essencesOnOther} esencia(s) ROJA. Total: {totalRedEssences}");
+                int amount = CalculateRedEssence();
+                AddRedEssence(amount);
             }
 
             _lastWorld = current;
         }
     }
 
-    // APIs públicas por si querés sumar esencias desde otros sistemas:
+    private int CalculateBlueEssence()
+    {
+        int level = UpgradeLevels.Get(labBlueUpgradeId);
+        float multiplier = 1f + (blueBonusPerLevel * level);
+        int total = Mathf.RoundToInt(essencesOnNormal * multiplier);
+        return Mathf.Max(1, total);
+    }
+
+    private int CalculateRedEssence()
+    {
+        int level = UpgradeLevels.Get(workshopRedUpgradeId);
+        float multiplier = 1f + (redBonusPerLevel * level);
+        int total = Mathf.RoundToInt(essencesOnOther * multiplier);
+        return Mathf.Max(1, total);
+    }
+
     public void AddBlueEssence(int amount)
     {
         if (amount <= 0) return;

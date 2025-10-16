@@ -230,6 +230,8 @@ public class GameManager : MonoBehaviour
             totalBlueEssences = essences.TotalBlue;
             totalRedEssences = essences.TotalRed;
 
+            EssenceBank.Add(totalBlueEssences, totalRedEssences);
+
             Time.timeScale = 1f;
             AudioListener.pause = false;
             SceneManager.LoadScene(resultScene);

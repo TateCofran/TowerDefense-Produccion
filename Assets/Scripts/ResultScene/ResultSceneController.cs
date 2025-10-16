@@ -66,8 +66,11 @@ public class ResultSceneController : MonoBehaviour
         if (timeText) timeText.text = "Tiempo: " + FormatTime(gm.timePlayed);
         if (waveText) waveText.text = "Waves Completed: " + gm.wavesCompleted;
         if (totalEnemiesKilledText) totalEnemiesKilledText.text = "Total Enemies Killed: " + gm.totalEnemiesKilled;
-        if (blueEssencesText) blueEssencesText.text = $"Normal Essences: {gm.totalBlueEssences}";
-        if (redEssencesText) redEssencesText.text = $"Other World Essences: {gm.totalRedEssences}";
+        if (blueEssencesText)
+            blueEssencesText.text = $"Normal Essences (run): {gm.totalBlueEssences}\nBank total: {EssenceBank.TotalBlue}";
+        if (redEssencesText)
+            redEssencesText.text = $"Other World Essences (run): {gm.totalRedEssences}\nBank total: {EssenceBank.TotalRed}";
+
     }
 
     private void WireButtons()
