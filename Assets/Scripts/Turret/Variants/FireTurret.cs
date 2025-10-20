@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(TurretStats))]
@@ -21,6 +22,16 @@ public class FireTurret : MonoBehaviour, IShootingBehavior
     [SerializeField] private bool parentVfxToHit = true;
     [SerializeField] private float impactVfxLifetime = 1.5f;
 
+    [Header("Fireball (proyectil visual)")]
+    [SerializeField] private GameObject fireballPrefab;
+    [SerializeField] private float fireballSpeed = 20f;
+    [Tooltip("Si se asigna, el fireball se parenta aquí. Si es null, queda en raíz.")]
+    [SerializeField] private Transform fireballParent;
+    [Tooltip("Si > 0, destruir el fireball por seguridad a los N segundos (además del impacto).")]
+    [SerializeField] private float fireballHardLifetime = 3f;
+    [Tooltip("Opcional: escalar el fireball al instanciarlo.")]
+    [SerializeField] private Vector3 fireballSpawnScale = Vector3.one;
+
     [Header("Daño de fuego (DoT)")]
     [SerializeField] private float tickRate = 1f;
     [SerializeField] private float damageFractionPerSecond = 1f / 2f;
@@ -32,7 +43,7 @@ public class FireTurret : MonoBehaviour, IShootingBehavior
     private float totalDamageApplied = 0f;
 
     [Header("Impact Sound")]
-    [SerializeField] private AudioClip impactClip; // suena cuando se adquiere target (y opcional en cada tick si vfxOnEachTick)
+    [SerializeField] private AudioClip impactClip;
     [Range(0f, 1f)]
     [SerializeField] private float impactVolume = 1f;
     [SerializeField] private bool ensureAudioSource = true;
@@ -78,46 +89,122 @@ public class FireTurret : MonoBehaviour, IShootingBehavior
         if (!firePoint || target == null || stats == null) return;
 
         Vector3 o = firePoint.position;
-        Vector3 hitPos = target.position + targetOffset;
-        Vector3 dir = (hitPos - o);
+        Vector3 predicted = target.position + targetOffset;
+        Vector3 dir = (predicted - o);
         float dist = dir.magnitude;
         if (dist <= 0.001f) return;
 
         Vector3 ndir = dir / dist;
 
-        // LOS opcional
+        // Línea de visión opcional
         if (losBlockers != 0 &&
             Physics.Raycast(o, ndir, dist, losBlockers, QueryTriggerInteraction.Ignore))
         {
-            if (debugDraw) Debug.DrawLine(o, hitPos, Color.gray, 0.1f);
+            if (debugDraw) Debug.DrawLine(o, predicted, Color.gray, 0.1f);
             return;
         }
 
-        bool acquired = false;
-
-        // Raycast directo
+        // 1) Intento con Raycast fino
         if (Physics.Raycast(o, ndir, out RaycastHit hit, dist + 0.25f, hittableLayers, QueryTriggerInteraction.Ignore))
         {
-            if (TryGetEnemy(hit.collider.transform, out var enemy))
-            {
-                SpawnImpactVfx(hit, ndir);
-                StartOrRefreshBurn(enemy);
-                if (debugDraw) Debug.DrawLine(o, hit.point, Color.red, 0.1f);
-                acquired = true;
-            }
+            HandleAcquiredHit(o, ndir, hit);
+            return;
         }
 
-        // SphereCast fallback
-        if (!acquired && sphereCastRadius > 0f &&
+        // 2) Fallback con SphereCast (más ancho)
+        if (sphereCastRadius > 0f &&
             Physics.SphereCast(o, sphereCastRadius, ndir, out RaycastHit shit, dist + 0.25f, hittableLayers, QueryTriggerInteraction.Ignore))
         {
-            if (TryGetEnemy(shit.collider.transform, out var enemy))
-            {
-                SpawnImpactVfx(shit, ndir);
-                StartOrRefreshBurn(enemy);
-                if (debugDraw) Debug.DrawLine(o, shit.point, Color.magenta, 0.1f);
-                acquired = true;
-            }
+            HandleAcquiredHit(o, ndir, shit);
+            return;
+        }
+
+        // Si no impactó nada, opcionalmente podríamos disparar a un punto “vacío”,
+        // pero el requerimiento pide que el fireball vaya al punto de impacto real del raycast,
+        // así que si no hay impacto, no disparamos fireball.
+    }
+
+    private void HandleAcquiredHit(Vector3 origin, Vector3 shotDir, RaycastHit hit)
+    {
+        Enemy enemy = null;
+        TryGetEnemy(hit.collider.transform, out enemy);
+
+        // Disparar el fireball hacia el punto de impacto detectado por el raycast.
+        if (fireballPrefab != null)
+        {
+            StartCoroutine(FireballTravel(origin, hit, enemy));
+        }
+        else
+        {
+            // Si no hay prefab, al menos mantener el comportamiento previo (impact VFX + DoT).
+            SpawnImpactVfx(hit, shotDir);
+            if (enemy != null) StartOrRefreshBurn(enemy);
+        }
+
+        if (debugDraw) Debug.DrawLine(origin, hit.point, Color.red, 0.15f);
+    }
+
+    private IEnumerator FireballTravel(Vector3 start, RaycastHit hit, Enemy enemyAtShotTime)
+    {
+        // Instancia del fireball
+        GameObject fb = Instantiate(fireballPrefab, start, Quaternion.identity, fireballParent ? fireballParent : null);
+        if (fireballSpawnScale != Vector3.one) fb.transform.localScale = fireballSpawnScale;
+
+        // Orientar hacia el punto de impacto (trayectoria recta del raycast)
+        Vector3 target = hit.point;
+        Vector3 toTarget = (target - start);
+        float totalDist = toTarget.magnitude;
+        if (totalDist <= 0.0001f)
+        {
+            // Nada que recorrer: resolvemos impacto inmediatamente
+            Destroy(fb);
+            ResolveImpact(hit, enemyAtShotTime, -toTarget.normalized);
+            yield break;
+        }
+
+        Vector3 dir = toTarget / totalDist;
+        fb.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
+
+        // Seguridad de vida del proyectil
+        float killAt = (fireballHardLifetime > 0f) ? Time.time + fireballHardLifetime : float.PositiveInfinity;
+
+        // Movimiento lineal hasta el impacto
+        float remaining = totalDist;
+        Vector3 lastPos = fb.transform.position;
+
+        while (remaining > 0f)
+        {
+            float step = fireballSpeed * Time.deltaTime;
+            if (step <= 0f) break;
+
+            // Evitar overshoot
+            float advance = Mathf.Min(step, remaining);
+            fb.transform.position += dir * advance;
+            remaining -= advance;
+
+            // Si el proyectil tiene un Trail o VFX, ya seguirá su propio update
+
+            // Seguridad temporal
+            if (Time.time >= killAt) break;
+
+            lastPos = fb.transform.position;
+            yield return null;
+        }
+
+        // Llegó (o timeout): resolver impacto visual y lógicas
+        Destroy(fb);
+        ResolveImpact(hit, enemyAtShotTime, -dir);
+    }
+
+    private void ResolveImpact(RaycastHit hit, Enemy enemyAtShotTime, Vector3 fallbackDir)
+    {
+        // VFX + sonido
+        SpawnImpactVfx(hit, fallbackDir);
+
+        // Iniciar/Refrescar DoT SOLO al impactar
+        if (enemyAtShotTime != null)
+        {
+            StartOrRefreshBurn(enemyAtShotTime);
         }
     }
 
@@ -157,11 +244,9 @@ public class FireTurret : MonoBehaviour, IShootingBehavior
 
             if (vfxOnEachTick && impactVfxPrefab)
             {
-                // Instanciamos en el centro del enemigo (sin normal de impacto).
                 Vector3 pos = burningTarget.transform.position + Vector3.up * 0.35f;
                 GameObject fx = Instantiate(impactVfxPrefab, pos, Quaternion.identity, parentVfxToHit ? burningTarget.transform : null);
                 if (impactVfxLifetime > 0f) Destroy(fx, impactVfxLifetime);
-
             }
         }
         else
@@ -182,8 +267,7 @@ public class FireTurret : MonoBehaviour, IShootingBehavior
 
         GameObject fx = Instantiate(impactVfxPrefab, pos, rot, parent);
         if (impactVfxLifetime > 0f) Destroy(fx, impactVfxLifetime);
-        _audioSource.PlayOneShot(impactClip, impactVolume);
-
+        if (_audioSource && impactClip) _audioSource.PlayOneShot(impactClip, impactVolume);
     }
 
     private static bool TryGetEnemy(Transform t, out Enemy enemy)

@@ -146,7 +146,7 @@ Transform:
   m_GameObject: {fileID: 6233859863566214812}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.149, z: 0.749}
+  m_LocalPosition: {x: 0, y: 0.721, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -662,10 +662,15 @@ MonoBehaviour:
   sphereCastRadius: 0.18
   targetOffset: {x: 0, y: 0.35, z: 0}
   debugDraw: 0
-  impactVfxPrefab: {fileID: 8077753923969922809, guid: f9b1a935eca5238408862287fcaf083e, type: 3}
-  impactVfxOffsetAlongNormal: 0.03
+  impactVfxPrefab: {fileID: 6172356675794849440, guid: 0344460d6b7190a4cbd1e6b8856c0a9e, type: 3}
+  impactVfxOffsetAlongNormal: 0
   parentVfxToHit: 1
   impactVfxLifetime: 1.5
+  boltPrefab: {fileID: 2018716135886895692, guid: 863ccfe34ed86d64e8d49b842c529203, type: 3}
+  boltSpeed: 8
+  boltParent: {fileID: 5886391253151756493}
+  boltSpawnScale: {x: 1, y: 1, z: 1}
+  boltHardLifetime: 2
   impactClip: {fileID: 8300000, guid: ecef8f486de718c4caab799f4e9d6ca1, type: 3}
   impactVolume: 0.03
   ensureAudioSource: 1

@@ -116,7 +116,7 @@ Transform:
   m_GameObject: {fileID: 6233859863566214812}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.214, z: 0.733}
+  m_LocalPosition: {x: 0, y: 0.751, z: 0.026}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -535,7 +535,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f18619527b2c3b843aee35fc06c930bb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  firePoint: {fileID: 3291181023223361483}
+  firePoint: {fileID: 5886391253151756493}
   hittableLayers:
     serializedVersion: 2
     m_Bits: 64
@@ -545,10 +545,15 @@ MonoBehaviour:
   sphereCastRadius: 0.12
   targetOffset: {x: 0, y: 0.35, z: 0}
   debugDraw: 0
-  impactVfxPrefab: {fileID: 587981244718552827, guid: 32b9e95b23c3cb34cac23a7c765e97f1, type: 3}
+  impactVfxPrefab: {fileID: 331170012210171845, guid: 5f183633422d0404997d80b4ae48b8c9, type: 3}
   impactVfxOffsetAlongNormal: 0.03
   parentVfxToHit: 1
   impactVfxLifetime: 1.5
+  fireballPrefab: {fileID: 2018716135886895692, guid: 4e0a85d6ed9630d42a72d1d24801d999, type: 3}
+  fireballSpeed: 5
+  fireballParent: {fileID: 5886391253151756493}
+  fireballHardLifetime: 3
+  fireballSpawnScale: {x: 1, y: 1, z: 1}
   tickRate: 1
   damageFractionPerSecond: 0.33
   vfxOnEachTick: 1
